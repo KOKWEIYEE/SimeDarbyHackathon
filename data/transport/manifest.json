@@ -1,0 +1,87 @@
+{
+  "source": "https://developer.data.gov.my/realtime-api/gtfs-static",
+  "scope": "Operator feeds cover the wider KL/Klang Valley region, not a clipped DBKL boundary.",
+  "feeds": [
+    {
+      "category": "rapid-rail-kl",
+      "url": "https://api.data.gov.my/gtfs-static/prasarana?category=rapid-rail-kl",
+      "retrieved_at_utc": "2026-10-15T10:09:11.769464+00:00",
+      "bytes": 80595,
+      "files": [
+        "agency.txt",
+        "__MACOSX/._agency.txt",
+        "calendar.txt",
+        "__MACOSX/._calendar.txt",
+        "frequencies.txt",
+        "__MACOSX/._frequencies.txt",
+        "routes.txt",
+        "__MACOSX/._routes.txt",
+        "shapes.txt",
+        "__MACOSX/._shapes.txt",
+        "stop_times.txt",
+        "__MACOSX/._stop_times.txt",
+        "stops.txt",
+        "__MACOSX/._stops.txt",
+        "trips.txt",
+        "__MACOSX/._trips.txt"
+      ],
+      "counts": {
+        "agency": 1,
+        "stops": 187,
+        "routes": 8,
+        "trips": 48,
+        "calendar": 8
+      },
+      "feed_info": []
+    },
+    {
+      "category": "rapid-bus-kl",
+      "url": "https://api.data.gov.my/gtfs-static/prasarana?category=rapid-bus-kl",
+      "retrieved_at_utc": "2026-10-15T10:09:34.303906+00:00",
+      "bytes": 1683379,
+      "files": [
+        "shapes.txt",
+        "agency.txt",
+        "frequencies.txt",
+        "calendar.txt",
+        "stop_times.txt",
+        "routes.txt",
+        "trips.txt",
+        "stops.txt"
+      ],
+      "counts": {
+        "agency": 1,
+        "stops": 4068,
+        "routes": 137,
+        "trips": 2097,
+        "calendar": 2
+      },
+      "feed_info": []
+    },
+    {
+      "category": "rapid-bus-mrtfeeder",
+      "url": "https://api.data.gov.my/gtfs-static/prasarana?category=rapid-bus-mrtfeeder",
+      "retrieved_at_utc": "2026-10-15T10:09:36.287095+00:00",
+      "bytes": 2022520,
+      "files": [
+        "agency.txt",
+        "calendar.txt",
+        "calendar_dates.txt",
+        "routes.txt",
+        "shapes.txt",
+        "stops.txt",
+        "stop_times.txt",
+        "trips.txt"
+      ],
+      "counts": {
+        "agency": 1,
+        "stops": 2117,
+        "routes": 91,
+        "trips": 6291,
+        "calendar": 2,
+        "calendar_dates": 4
+      },
+      "feed_info": []
+    }
+  ]
+}

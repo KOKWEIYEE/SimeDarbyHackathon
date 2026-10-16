@@ -4,3 +4,5 @@ node_modules
 dist
 .agents
 .github
+.local-python/
+__pycache__/

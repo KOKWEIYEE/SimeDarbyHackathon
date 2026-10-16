@@ -1,0 +1,12 @@
+﻿{
+ "sites": [
+  {"id":"klcc","name":"KLCC precinct","coordinates":[[3.1505,101.7115],[3.153,101.7115],[3.153,101.714],[3.1505,101.714]],"context":"Explore public-realm improvements and building reuse; verify park ownership and planning restrictions."},
+  {"id":"sentral","name":"KL Sentral precinct","coordinates":[[3.132,101.685],[3.134,101.685],[3.134,101.688],[3.132,101.688]],"context":"Explore a transit-oriented mixed-use concept; verify walking routes, capacity and permitted density."},
+  {"id":"kampung-baru","name":"Kampung Baru precinct","coordinates":[[3.164,101.703],[3.166,101.703],[3.166,101.706],[3.164,101.706]],"context":"Explore sensitive infill and adaptive reuse; verify tenure, heritage, community needs and flood exposure."}
+ ],
+ "strategies": [
+  {"id":"walkway","name":"Permeable walkway","rate":145,"baseline":50,"carbon":34,"recommendation":"Study recycled permeable pavers with shaded walking routes. Check subgrade infiltration, drainage outlets and maintenance access before choosing the pavement."},
+  {"id":"development","name":"Development concept","rate":2800,"baseline":600,"carbon":450,"recommendation":"Compare mixed-use infill with community and commercial uses. Treat the entered area as gross floor area. Confirm zoning, ownership, transport capacity, terrain and flood constraints before ranking development suitability."},
+  {"id":"retrofit","name":"Building retrofit","rate":650,"baseline":220,"carbon":132,"recommendation":"Study retention of the existing structure, recycled finishes and external shading. Assess rainwater harvesting separately. A structural and energy audit is needed to confirm feasibility."}
+ ]
+}
