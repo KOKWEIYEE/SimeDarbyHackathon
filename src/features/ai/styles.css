@@ -751,6 +751,86 @@
   color: #0f172a;
 }
 
+/* Amenities Details Breakdown in Analysis Result */
+.amenities-breakdown-section {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breakdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.breakdown-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+}
+
+.breakdown-total-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.06);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.breakdown-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.breakdown-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  font-size: 0.76rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.breakdown-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.breakdown-chip-icon {
+  font-size: 0.85rem;
+}
+
+.breakdown-chip-label {
+  font-weight: 600;
+  color: #334155;
+}
+
+.breakdown-chip-count {
+  font-weight: 800;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  margin-left: 2px;
+}
+
 /* Ask AI button */
 .ask-ai-travel-btn {
   width: 100%;

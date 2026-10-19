@@ -208,6 +208,36 @@ export const TRANSIT_LINES = [
   },
 ];
 
+export function decodePolyline(encoded) {
+  if (!encoded) return [];
+  const points = [];
+  let index = 0, len = encoded.length;
+  let lat = 0, lng = 0;
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    points.push([lng * 1e-5, lat * 1e-5]);
+  }
+  return points;
+}
+
 /**
  * Given an isochrone geometry and the transit selection flag:
  * Returns GeoJSON FeatureCollection of transit routes that have at least
@@ -236,6 +266,7 @@ export function getActiveTransitRoutes(isochroneGeometry, isTransitSelected = fa
           id: line.id,
           name: line.name,
           color: line.color,
+          source: 'mapbox',
         },
         geometry: {
           type: 'LineString',
@@ -248,5 +279,221 @@ export function getActiveTransitRoutes(isochroneGeometry, isTransitSelected = fa
   return {
     type: 'FeatureCollection',
     features: activeFeatures,
+  };
+}
+
+/**
+ * Query Google Routes / Directions service first for transit route geometry.
+ * If unavailable, throttled, or failed, seamlessly fall back to Mapbox transit route layer.
+ */
+export async function getActiveTransitRoutesWithGoogleFirst(isochroneGeometry, isTransitSelected = false, googleApiKey = '') {
+  if (!isTransitSelected || !isochroneGeometry) {
+    return { type: 'FeatureCollection', features: [] };
+  }
+
+  const activeLines = TRANSIT_LINES.filter((line) =>
+    line.stations.some((st) => geometryContains(isochroneGeometry, st.coords[0], st.coords[1]))
+  );
+
+  if (!activeLines.length) {
+    return { type: 'FeatureCollection', features: [] };
+  }
+
+  if (googleApiKey) {
+    try {
+      const googleFeatures = [];
+      for (const line of activeLines) {
+        try {
+          const firstSt = line.stations[0];
+          const lastSt = line.stations[line.stations.length - 1];
+          const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': googleApiKey,
+              'X-Goog-FieldMask': 'routes.polyline.encodedPolyline',
+            },
+            body: JSON.stringify({
+              origin: { location: { latLng: { latitude: firstSt.coords[1], longitude: firstSt.coords[0] } } },
+              destination: { location: { latLng: { latitude: lastSt.coords[1], longitude: lastSt.coords[0] } } },
+              travelMode: 'TRANSIT',
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const poly = data.routes?.[0]?.polyline?.encodedPolyline;
+            if (poly) {
+              const coords = decodePolyline(poly);
+              if (coords.length > 1) {
+                googleFeatures.push({
+                  type: 'Feature',
+                  id: line.id,
+                  properties: { id: line.id, name: line.name, color: line.color, source: 'google' },
+                  geometry: { type: 'LineString', coordinates: coords },
+                });
+                continue;
+              }
+            }
+          }
+        } catch {
+          // ignore single line route error
+        }
+
+        // Line-level fallback to Mapbox coordinates
+        googleFeatures.push({
+          type: 'Feature',
+          id: line.id,
+          properties: { id: line.id, name: line.name, color: line.color, source: 'mapbox' },
+          geometry: { type: 'LineString', coordinates: line.coordinates },
+        });
+      }
+
+      if (googleFeatures.length > 0) {
+        return {
+          type: 'FeatureCollection',
+          features: googleFeatures,
+        };
+      }
+    } catch (err) {
+      console.warn('Google Maps transit service error, falling back to Mapbox service:', err);
+    }
+  }
+
+  // Fallback to Mapbox service
+  return getActiveTransitRoutes(isochroneGeometry, isTransitSelected);
+}
+
+/**
+ * Find all transit lines that pass through or are located near a given station
+ */
+export function findLinesForStation(item) {
+  if (!item) return [];
+  const name = (item.name || '').toLowerCase();
+  const coords = item.coords || [item.lon, item.lat] || [0, 0];
+  const lng = coords[0];
+  const lat = coords[1];
+
+  const matched = [];
+  for (const line of TRANSIT_LINES) {
+    const hasNameMatch = line.stations.some((st) => {
+      const stName = st.name.toLowerCase();
+      return name.includes(stName) || stName.includes(name);
+    });
+
+    const hasProximityMatch = lng && lat && line.stations.some((st) => {
+      const dLng = st.coords[0] - lng;
+      const dLat = st.coords[1] - lat;
+      return dLng * dLng + dLat * dLat < 0.00015; // ~1.2 km
+    });
+
+    if (hasNameMatch || hasProximityMatch) {
+      matched.push(line);
+    }
+  }
+
+  // If no exact match but item is a transport station, match the closest line
+  if (!matched.length && lng && lat) {
+    let closestLine = null;
+    let minDist = Infinity;
+    for (const line of TRANSIT_LINES) {
+      for (const st of line.stations) {
+        const dLng = st.coords[0] - lng;
+        const dLat = st.coords[1] - lat;
+        const distSq = dLng * dLng + dLat * dLat;
+        if (distSq < minDist) {
+          minDist = distSq;
+          closestLine = line;
+        }
+      }
+    }
+    if (closestLine && minDist < 0.0006) {
+      matched.push(closestLine);
+    }
+  }
+
+  return matched;
+}
+
+/**
+ * Returns transit route lines specifically for a clicked station.
+ * Uses Google Routes API first if apiKey provided, falling back to Mapbox line coordinates.
+ */
+export async function getTransitRouteForStation(stationItem, googleApiKey = '') {
+  const lines = findLinesForStation(stationItem);
+  if (!lines.length) {
+    return { type: 'FeatureCollection', features: [] };
+  }
+
+  if (googleApiKey) {
+    try {
+      const googleFeatures = [];
+      for (const line of lines) {
+        try {
+          const firstSt = line.stations[0];
+          const lastSt = line.stations[line.stations.length - 1];
+          const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': googleApiKey,
+              'X-Goog-FieldMask': 'routes.polyline.encodedPolyline',
+            },
+            body: JSON.stringify({
+              origin: { location: { latLng: { latitude: firstSt.coords[1], longitude: firstSt.coords[0] } } },
+              destination: { location: { latLng: { latitude: lastSt.coords[1], longitude: lastSt.coords[0] } } },
+              travelMode: 'TRANSIT',
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const poly = data.routes?.[0]?.polyline?.encodedPolyline;
+            if (poly) {
+              const coords = decodePolyline(poly);
+              if (coords.length > 1) {
+                googleFeatures.push({
+                  type: 'Feature',
+                  id: line.id,
+                  properties: { id: line.id, name: line.name, color: line.color, source: 'google' },
+                  geometry: { type: 'LineString', coordinates: coords },
+                });
+                continue;
+              }
+            }
+          }
+        } catch {
+          // line fallback
+        }
+
+        // Line-level fallback
+        googleFeatures.push({
+          type: 'Feature',
+          id: line.id,
+          properties: { id: line.id, name: line.name, color: line.color, source: 'mapbox' },
+          geometry: { type: 'LineString', coordinates: line.coordinates },
+        });
+      }
+
+      if (googleFeatures.length > 0) {
+        return {
+          type: 'FeatureCollection',
+          features: googleFeatures,
+        };
+      }
+    } catch (err) {
+      console.warn('Google Maps transit routing failed, falling back to Mapbox service:', err);
+    }
+  }
+
+  // Mapbox service fallback
+  return {
+    type: 'FeatureCollection',
+    features: lines.map((line) => ({
+      type: 'Feature',
+      id: line.id,
+      properties: { id: line.id, name: line.name, color: line.color, source: 'mapbox' },
+      geometry: { type: 'LineString', coordinates: line.coordinates },
+    })),
   };
 }

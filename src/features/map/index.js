@@ -14,7 +14,12 @@ import { fetchIsochrones, MAPBOX_ISOCHRONE_URL, ISOCHRONE_COLORS, MODE_LABEL } f
 import { loadFromGoogle, CellBounds, cleanApiKey } from './services/googlePlacesService.js';
 import { searchNearbyPlaces } from './services/placesService.js';
 import { searchPlace } from './services/geocodingService.js';
-import { getActiveTransitRoutes } from './services/transitRoutes.js';
+import {
+  getActiveTransitRoutes,
+  getActiveTransitRoutesWithGoogleFirst,
+  getTransitRouteForStation,
+  findLinesForStation,
+} from './services/transitRoutes.js';
 
 export {
   PLACES_DATA,
@@ -170,17 +175,39 @@ export function initMapFeature({
       </div>
     `;
 
+    const matchedLines = findLinesForStation(item);
+    const isTransport =
+      ['lrt-station', 'train-station', 'bus-station', 'monorail-station', 'transit'].includes(
+        item.categoryId || item.cat?.id
+      ) ||
+      item.cat?.groupId === 'transport' ||
+      matchedLines.length > 0;
+
+    // Show transit route line on map if the transit label/marker is clicked by the user
+    el.addEventListener('click', async () => {
+      if (isTransport) {
+        await showTransitRouteForStation(item);
+      }
+    });
+
     const popupHtml = `
       <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 2px;">
         <strong style="font-size: 13.5px; color: #0f172a; display: block; margin-bottom: 3px;">${item.name}</strong>
         <span style="display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background-color: ${cat.color}; margin-bottom: 5px;">${cat.label}</span>
         ${item.address ? `<div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">📍 ${item.address}</div>` : ''}
         ${item.cuisine ? `<div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">🍴 Cuisine: ${item.cuisine}</div>` : ''}
+        ${isTransport && matchedLines.length ? `<div style="margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 700;">🚇 Route Line: ${matchedLines.map((l) => l.name).join(', ')} (active on map)</div>` : ''}
       </div>
     `;
 
     const popup = new mapboxgl.Popup({ offset: 12, closeButton: true, maxWidth: '240px' })
       .setHTML(popupHtml);
+
+    popup.on('open', async () => {
+      if (isTransport) {
+        await showTransitRouteForStation(item);
+      }
+    });
 
     const marker = new mapboxgl.Marker({ element: el, anchor: 'left' })
       .setLngLat([item.lon, item.lat])
@@ -316,16 +343,56 @@ export function initMapFeature({
       }
     }
 
+    // Compute breakdown of amenities by category type
+    const breakdownMap = new Map();
+    const countItem = (item) => {
+      const catId = item.cat?.id || item.categoryId || 'other';
+      const existing = breakdownMap.get(catId) || {
+        id: catId,
+        label: item.cat?.label || catId,
+        color: item.cat?.color || '#2563eb',
+        icon: item.cat?.icon || '📍',
+        count: 0,
+      };
+      existing.count += 1;
+      breakdownMap.set(catId, existing);
+    };
+
+    for (const cx of shown) {
+      for (const item of cx.items) {
+        countItem(item);
+      }
+    }
+    for (const item of loose) {
+      if (!shownKeys.has(item.key)) {
+        countItem(item);
+      }
+    }
+
+    const typeBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.count - a.count);
     const totalCount = shown.reduce((n, cx) => n + cx.items.length, 0) + loose.length;
-    return { total: totalCount, shownComplexes: shown.length, source };
+    return { total: totalCount, shownComplexes: shown.length, source, typeBreakdown };
   }
 
-  function updateTransitRoutes(geom, categoryIds = []) {
-    const isTransitSelected = categoryIds.includes('transit');
-    const routeData = getActiveTransitRoutes(geom, isTransitSelected);
+  async function showTransitRouteForStation(item) {
+    const keyToUse = cleanApiKey(
+      googleApiKey ||
+      (import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY || '')
+    );
+    const routeData = await getTransitRouteForStation(item, keyToUse);
     const src = map.getSource('transit-routes');
     if (src) {
       src.setData(routeData);
+    }
+  }
+
+  async function updateTransitRoutes(geom, categoryIds = []) {
+    const isTransitSelected = categoryIds.some((id) =>
+      ['transport', 'lrt-station', 'train-station', 'bus-station', 'monorail-station', 'transit'].includes(id)
+    );
+    if (!isTransitSelected) {
+      const src = map.getSource('transit-routes');
+      if (src) src.setData({ type: 'FeatureCollection', features: [] });
     }
   }
 
@@ -464,13 +531,17 @@ export function initMapFeature({
       mode
     );
 
-    // 4. Update transit route lines (exceeding isochrone if transit station is within isochrone)
-    updateTransitRoutes(activeIsochroneGeometry, selectedCategoryIds);
+    // Clear any previous transit route lines so the line is shown when clicked by user
+    const transitSrc = map.getSource('transit-routes');
+    if (transitSrc) {
+      transitSrc.setData({ type: 'FeatureCollection', features: [] });
+    }
 
     return {
       total: stats.total,
       source: data.source,
       complexes: stats.shownComplexes,
+      typeBreakdown: stats.typeBreakdown,
     };
   }
 

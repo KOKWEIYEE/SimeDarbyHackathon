@@ -20,7 +20,15 @@ const INITIAL_SELECTED_CATEGORIES = [
   'cafe',
   'mall',
   'grocery',
-  'transit',
+  'lrt-station',
+  'train-station',
+  'bus-station',
+  'monorail-station',
+  'kindergarten',
+  'primary-school',
+  'secondary',
+  'university',
+  'tuition-centre',
 ];
 
 function downloadBlob(blob, filename) {
@@ -629,17 +637,30 @@ export default function App() {
                     </span>
                   </div>
                   <div className="metric-row">
-                    <span className="metric-name">🎯 Reach Area</span>
-                    <span className="metric-value" style={{ color: activeMinutesObj.color }}>
-                      {travelMinutes} min {activeTravelModeObj.label} isochrone
-                    </span>
-                  </div>
-                  <div className="metric-row">
                     <span className="metric-name">🏷️ Labeled Places</span>
                     <span className="metric-value" style={{ color: '#0f172a', fontWeight: 700 }}>
                       {analysisResult?.total ?? 0} places ({analysisResult?.source || 'Google Places'})
                     </span>
                   </div>
+
+                  {analysisResult?.typeBreakdown?.length ? (
+                    <div className="amenities-breakdown-section">
+                      <div className="breakdown-header">
+                        <span className="breakdown-title">Amenities Details</span>
+                        <span className="breakdown-total-badge">{analysisResult.total} total</span>
+                      </div>
+                      <div className="breakdown-grid">
+                        {analysisResult.typeBreakdown.map((item) => (
+                          <div key={item.id} className="breakdown-chip">
+                            <span className="breakdown-chip-dot" style={{ backgroundColor: item.color }} />
+                            <span className="breakdown-chip-icon">{item.icon}</span>
+                            <span className="breakdown-chip-label">{item.label}</span>
+                            <span className="breakdown-chip-count">{item.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -661,14 +682,14 @@ export default function App() {
             <span>Restaurants</span>
           </button>
 
-          {/* Quick Filter Pill: Transit */}
+          {/* Quick Filter Pill: Transport */}
           <button
             type="button"
-            className={selectedCategories.includes('transit') ? 'filter-pill active' : 'filter-pill'}
-            onClick={() => toggleCategory('transit')}
+            className={isGroupActive('transport') ? 'filter-pill active' : 'filter-pill'}
+            onClick={() => handleQuickFilterClick('transport')}
           >
             <span>🚇</span>
-            <span>Transit</span>
+            <span>Transport</span>
           </button>
 
           {/* Quick Filter Pill: Things to do */}
@@ -679,6 +700,16 @@ export default function App() {
           >
             <span>🎯</span>
             <span>Things to do</span>
+          </button>
+
+          {/* Quick Filter Pill: Education */}
+          <button
+            type="button"
+            className={isGroupActive('education') ? 'filter-pill active' : 'filter-pill'}
+            onClick={() => handleQuickFilterClick('education')}
+          >
+            <span>🎓</span>
+            <span>Education</span>
           </button>
 
           {/* THE 'ALL' BUTTON (Replaces old 'Shop' button) with Categorized Multi-Selection */}
