@@ -1,5 +1,11 @@
 import './styles.css';
 
+export {
+  callAiChatApi,
+  isAiApiConfigured,
+  getAiApiConfig,
+} from './aiService.js';
+
 export function initAiFeature({ app, aiPanel }) {
   let compactPanelMode = 'b';
   let isFullSize = false;

@@ -1,7 +1,14 @@
 import mapboxgl from 'mapbox-gl';
 import './styles.css';
 import { PLACES_DATA, PRESET_LOCATIONS } from './placesData.js';
-import { ALL_CATEGORY_ITEMS, CATEGORY_GROUPS, CATEGORIES_BY_ID } from './categories.js';
+import {
+  ALL_CATEGORY_ITEMS,
+  CATEGORY_GROUPS,
+  CATEGORIES_BY_ID,
+  CATEGORY_SHAPES,
+  getCategoryShapeSvg,
+  getCategoryMeta,
+} from './categories.js';
 import {
   geometryContains,
   polygonContains,
@@ -13,12 +20,13 @@ import {
 import { fetchIsochrones, MAPBOX_ISOCHRONE_URL, ISOCHRONE_COLORS, MODE_LABEL } from './services/isochroneService.js';
 import { loadFromGoogle, CellBounds, cleanApiKey } from './services/googlePlacesService.js';
 import { searchNearbyPlaces } from './services/placesService.js';
-import { searchPlace } from './services/geocodingService.js';
+import { searchPlace, reverseGeocode } from './services/geocodingService.js';
 import {
   getActiveTransitRoutes,
   getActiveTransitRoutesWithGoogleFirst,
   getTransitRouteForStation,
   findLinesForStation,
+  isTransportStation,
 } from './services/transitRoutes.js';
 
 export {
@@ -27,9 +35,14 @@ export {
   ALL_CATEGORY_ITEMS,
   CATEGORY_GROUPS,
   CATEGORIES_BY_ID,
+  CATEGORY_SHAPES,
+  getCategoryShapeSvg,
+  getCategoryMeta,
   searchNearbyPlaces,
   searchPlace,
+  reverseGeocode,
   fetchIsochrones,
+  isTransportStation,
 };
 
 function getGeojsonBounds(geojsonGeometry) {
@@ -76,6 +89,7 @@ export function initMapFeature({
   let currentOrigin = {
     coords: [101.7069, 3.1390],
     name: 'Sime Darby Centre',
+    address: '19, Jalan Pudu, Bukit Bintang, 55100 Kuala Lumpur',
     type: 'Commercial HQ',
   };
 
@@ -88,11 +102,15 @@ export function initMapFeature({
     bearing: 0,
     antialias: true,
     attributionControl: true,
+    preserveDrawingBuffer: true,
   });
 
   let mapMode = '2d';
   let activeMarkers = [];
   let originMarker = null;
+  let siteAMarker = null;
+  let siteBMarker = null;
+  let isComparisonActive = false;
 
   // Analysis state: FALSE at default — NO amenities labeled until user clicks Run Analysis!
   let isAnalysisActive = false;
@@ -107,13 +125,17 @@ export function initMapFeature({
   function renderOriginMarker() {
     if (originMarker) {
       originMarker.remove();
+      originMarker = null;
     }
+
+    if (isComparisonActive) return;
 
     const pinEl = document.createElement('div');
     pinEl.className = 'user-origin-pin';
     pinEl.innerHTML = `
       <div class="user-origin-pin-card">
         <span class="user-origin-pin-title">${currentOrigin.name}</span>
+        <span class="user-origin-pin-addr">📍 ${currentOrigin.address || 'Kuala Lumpur, Malaysia'}</span>
       </div>
       <div class="user-origin-pin-icon">
         <svg width="30" height="40" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -125,35 +147,113 @@ export function initMapFeature({
       </div>
     `;
 
+    const popupHtml = `
+      <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 4px;">
+        <div style="font-size: 10.5px; font-weight: 800; color: #ef4444; text-transform: uppercase; margin-bottom: 2px;">📍 Chosen Analysis Location</div>
+        <strong style="font-size: 14px; color: #0f172a; display: block; margin-bottom: 3px;">${currentOrigin.name}</strong>
+        <div style="color: #475569; font-size: 12px; margin-bottom: 6px;">📍 ${currentOrigin.address || 'Kuala Lumpur, Malaysia'}</div>
+        <div style="font-size: 10px; color: #94a3b8;">Coords: ${currentOrigin.coords[1]}, ${currentOrigin.coords[0]}</div>
+      </div>
+    `;
+    const popup = new mapboxgl.Popup({ offset: 12, closeButton: true, maxWidth: '280px' })
+      .setHTML(popupHtml);
+
     originMarker = new mapboxgl.Marker({ element: pinEl, anchor: 'bottom' })
       .setLngLat(currentOrigin.coords)
+      .setPopup(popup)
       .addTo(map);
   }
 
-  function updateOrigin({ coords, name, type }) {
-    currentOrigin = { coords, name, type };
+  function createSitePin(site, labelLetter, color) {
+    const el = document.createElement('div');
+    el.className = `user-origin-pin ${labelLetter === 'A' ? 'site-a-pin' : 'site-b-pin'}`;
+    el.innerHTML = `
+      <div class="user-origin-pin-card">
+        <span class="user-origin-pin-title">Site ${labelLetter}: ${site.name}</span>
+        <span class="user-origin-pin-addr">📍 ${site.address || 'Kuala Lumpur, Malaysia'}</span>
+      </div>
+      <div class="user-origin-pin-icon">
+        <svg width="34" height="44" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 0C7.163 0 0 7.163 0 16c0 10.667 14 24.5 15.143 25.619a1.2 1.2 0 001.714 0C18 40.5 32 26.667 32 16 32 7.163 24.837 0 16 0z" fill="${color}"/>
+          <circle cx="16" cy="15" r="7" fill="#ffffff"/>
+          <text x="16" y="19" font-size="11" font-weight="900" fill="${color}" text-anchor="middle">${labelLetter}</text>
+        </svg>
+        <div class="user-origin-pin-shadow"></div>
+      </div>
+    `;
+
+    const popupHtml = `
+      <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 4px;">
+        <div style="font-size: 11px; font-weight: 800; color: ${color}; text-transform: uppercase; margin-bottom: 2px;">Site ${labelLetter} Selected</div>
+        <strong style="font-size: 14px; color: #0f172a; display: block; margin-bottom: 3px;">${site.name}</strong>
+        <div style="color: #475569; font-size: 12px; margin-bottom: 4px;">📍 ${site.address || 'Kuala Lumpur, Malaysia'}</div>
+        <div style="font-size: 10px; color: #94a3b8;">Coords: ${site.coords[1]}, ${site.coords[0]}</div>
+      </div>
+    `;
+    const popup = new mapboxgl.Popup({ offset: 12, closeButton: true, maxWidth: '280px' }).setHTML(popupHtml);
+
+    return new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+      .setLngLat(site.coords)
+      .setPopup(popup)
+      .addTo(map);
+  }
+
+  function updateOrigin({ coords, name, type, address }) {
+    currentOrigin = {
+      coords,
+      name,
+      type,
+      address: address || currentOrigin.address || 'Kuala Lumpur, Malaysia',
+    };
     renderOriginMarker();
   }
 
   renderOriginMarker();
 
-  // Allow clicking on map to choose a custom location
-  map.on('click', (e) => {
+  function clearTransitRoutes() {
+    const src = map.getSource('transit-routes');
+    if (src) {
+      src.setData({ type: 'FeatureCollection', features: [] });
+    }
+  }
+
+  // Allow clicking on map to choose a custom location with automatic reverse geocoding
+  map.on('click', async (e) => {
     const target = e.originalEvent.target;
     if (target && (target.closest('.amenity-pure-marker') || target.closest('.complex-marker') || target.closest('.user-origin-pin') || target.closest('.mapboxgl-popup'))) {
       return;
     }
 
+    clearTransitRoutes();
+
     const lng = Number(e.lngLat.lng.toFixed(4));
     const lat = Number(e.lngLat.lat.toFixed(4));
-    const customLoc = {
-      id: 'custom',
+
+    // Show immediate responsive marker
+    const tempLoc = {
+      id: 'custom-' + Date.now(),
       coords: [lng, lat],
-      name: `Custom Location (${lat}, ${lng})`,
+      name: `Point (${lat}, ${lng})`,
+      address: 'Resolving address...',
       type: 'Pinned Location',
     };
+    updateOrigin(tempLoc);
 
-    onLocationPick?.(customLoc);
+    try {
+      const geo = await reverseGeocode(lng, lat, apiKey);
+      const resolvedLoc = {
+        id: tempLoc.id,
+        coords: [lng, lat],
+        name: geo.name || `Location (${lat}, ${lng})`,
+        address: geo.address || `${lat}, ${lng}, Kuala Lumpur, Malaysia`,
+        type: 'Pinned Location',
+      };
+      updateOrigin(resolvedLoc);
+      onLocationPick?.(resolvedLoc);
+    } catch (err) {
+      console.warn('Reverse geocode error:', err);
+      onLocationPick?.(tempLoc);
+    }
   });
 
   function clearPOIs() {
@@ -162,50 +262,78 @@ export function initMapFeature({
   }
 
   function addPlaceMarker(item, center, profile) {
-    const cat = item.cat || { color: '#2563eb', label: item.categoryId || 'Place' };
+    const cat = item.cat || {
+      color: '#2563eb',
+      label: item.categoryId || 'Place',
+      shape: 'circle',
+      shapeSymbol: '●',
+    };
+    const shape = cat.shape || 'circle';
+    const shapeColor = cat.color || '#2563eb';
+
+    const isTransport = isTransportStation(item);
+    const matchedLines = isTransport ? findLinesForStation(item) : [];
+
+    const shapeSvgPin = getCategoryShapeSvg(shape, 14, shapeColor, '#ffffff');
+    const shapeSvgLabel = getCategoryShapeSvg(shape, 10, shapeColor, '#ffffff');
 
     const el = document.createElement('div');
-    el.className = 'amenity-pure-marker';
+    el.className = `amenity-pure-marker shape-marker-${shape}`;
     el.innerHTML = `
-      <span class="amenity-pure-dot" style="background-color: ${cat.color};"></span>
-      <div class="amenity-pure-label">
+      <span class="amenity-shape-pin">${shapeSvgPin}</span>
+      <div class="amenity-pure-label" style="border-left: 3.5px solid ${shapeColor};">
         <span class="amenity-pure-name">${item.name}</span>
-        <span class="amenity-pure-type" style="color: ${cat.color};">${cat.label}</span>
+        <span class="amenity-pure-type" style="color: ${shapeColor}; background-color: ${shapeColor}18; border: 1px solid ${shapeColor}35; border-radius: 4px; padding: 1px 6px;">
+          <span class="amenity-type-shape">${shapeSvgLabel}</span>
+          ${cat.label}
+        </span>
         ${item.address ? `<span class="amenity-pure-addr">${item.address}</span>` : ''}
       </div>
     `;
 
-    const matchedLines = findLinesForStation(item);
-    const isTransport =
-      ['lrt-station', 'train-station', 'bus-station', 'monorail-station', 'transit'].includes(
-        item.categoryId || item.cat?.id
-      ) ||
-      item.cat?.groupId === 'transport' ||
-      matchedLines.length > 0;
-
-    // Show transit route line on map if the transit label/marker is clicked by the user
+    // Only mark transit route line for genuine transport stations!
     el.addEventListener('click', async () => {
-      if (isTransport) {
+      if (isTransport && matchedLines.length > 0) {
         await showTransitRouteForStation(item);
+      } else {
+        clearTransitRoutes();
       }
     });
 
     const popupHtml = `
-      <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 2px;">
-        <strong style="font-size: 13.5px; color: #0f172a; display: block; margin-bottom: 3px;">${item.name}</strong>
-        <span style="display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background-color: ${cat.color}; margin-bottom: 5px;">${cat.label}</span>
+      <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 3px;">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 5px;">
+          ${getCategoryShapeSvg(shape, 15, shapeColor, '#ffffff')}
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #ffffff; background-color: ${shapeColor};">
+            ${cat.label}
+          </span>
+        </div>
+        <strong style="font-size: 13.5px; color: #0f172a; display: block; margin-bottom: 3px; font-weight: 800;">${item.name}</strong>
         ${item.address ? `<div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">📍 ${item.address}</div>` : ''}
-        ${item.cuisine ? `<div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">🍴 Cuisine: ${item.cuisine}</div>` : ''}
-        ${isTransport && matchedLines.length ? `<div style="margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 700;">🚇 Route Line: ${matchedLines.map((l) => l.name).join(', ')} (active on map)</div>` : ''}
+        ${item.cuisine ? `<div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">Cuisine: ${item.cuisine}</div>` : ''}
+        ${isTransport && matchedLines.length ? `
+          <div style="margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 11.5px;">
+            <div style="font-weight: 800; color: #1d4ed8; margin-bottom: 3px;">Transit Route${matchedLines.length > 1 ? 's' : ''}:</div>
+            ${matchedLines.map((l) => `
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px; font-weight: 700; color: #0f172a;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: ${l.color}; flex-shrink: 0;"></span>
+                <span>${l.name}</span>
+              </div>
+            `).join('')}
+            <div style="font-size: 10px; color: #3b82f6; margin-top: 4px; font-weight: 600;">(Line marked on map)</div>
+          </div>
+        ` : ''}
       </div>
     `;
 
-    const popup = new mapboxgl.Popup({ offset: 12, closeButton: true, maxWidth: '240px' })
+    const popup = new mapboxgl.Popup({ offset: 12, closeButton: true, maxWidth: '250px' })
       .setHTML(popupHtml);
 
     popup.on('open', async () => {
-      if (isTransport) {
+      if (isTransport && matchedLines.length > 0) {
         await showTransitRouteForStation(item);
+      } else {
+        clearTransitRoutes();
       }
     });
 
@@ -239,18 +367,22 @@ export function initMapFeature({
     const popupHtml = `
       <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 2px; max-height: 290px; overflow-y: auto;">
         <strong style="font-size: 14px; color: #0f172a; display: block; margin-bottom: 2px;">${cx.name}</strong>
-        <div style="color: #0d9488; font-size: 11.5px; font-weight: 700; margin-bottom: 8px;">🏬 ${cx.items.length} places inside complex</div>
+        <div style="color: #0284c7; font-size: 11.5px; font-weight: 700; margin-bottom: 8px;">${cx.items.length} places inside complex</div>
         ${floors.map((fl) => `
           <div style="font-weight: 700; color: #475569; font-size: 11px; text-transform: uppercase; margin-top: 6px; margin-bottom: 3px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px;">
             ${floorLabel(fl)}
           </div>
           <ul style="list-style: none; padding: 0; margin: 0 0 6px 0;">
-            ${byFloor.get(fl).slice(0, 8).map((it) => `
+            ${byFloor.get(fl).slice(0, 8).map((it) => {
+              const itShape = it.cat?.shape || 'square';
+              const itColor = it.cat?.color || '#0284c7';
+              return `
               <li style="display: flex; align-items: center; gap: 6px; padding: 2px 0;">
-                <span style="width: 7px; height: 7px; border-radius: 50%; background: ${it.cat?.color || '#0d9488'}; flex-shrink: 0;"></span>
+                <span style="display: inline-flex; align-items: center; flex-shrink: 0;">${getCategoryShapeSvg(itShape, 11, itColor, '#ffffff')}</span>
                 <span style="font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.name}</span>
               </li>
-            `).join('')}
+              `;
+            }).join('')}
           </ul>
         `).join('')}
       </div>
@@ -350,7 +482,9 @@ export function initMapFeature({
       const existing = breakdownMap.get(catId) || {
         id: catId,
         label: item.cat?.label || catId,
-        color: item.cat?.color || '#2563eb',
+        color: item.cat?.color || '#0284c7',
+        shape: item.cat?.shape || 'circle',
+        shapeSymbol: item.cat?.shapeSymbol || '●',
         icon: item.cat?.icon || '📍',
         count: 0,
       };
@@ -369,17 +503,22 @@ export function initMapFeature({
       }
     }
 
+    const renderedPlaces = [
+      ...shown.flatMap((cx) => cx.items),
+      ...loose.filter((item) => !shownKeys.has(item.key)),
+    ];
+
     const typeBreakdown = Array.from(breakdownMap.values()).sort((a, b) => b.count - a.count);
     const totalCount = shown.reduce((n, cx) => n + cx.items.length, 0) + loose.length;
-    return { total: totalCount, shownComplexes: shown.length, source, typeBreakdown };
+    return { total: totalCount, shownComplexes: shown.length, source, typeBreakdown, places: renderedPlaces };
   }
 
   async function showTransitRouteForStation(item) {
-    const keyToUse = cleanApiKey(
-      googleApiKey ||
-      (import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY || '')
-    );
-    const routeData = await getTransitRouteForStation(item, keyToUse);
+    if (!isTransportStation(item)) {
+      clearTransitRoutes();
+      return;
+    }
+    const routeData = await getTransitRouteForStation(item);
     const src = map.getSource('transit-routes');
     if (src) {
       src.setData(routeData);
@@ -388,11 +527,10 @@ export function initMapFeature({
 
   async function updateTransitRoutes(geom, categoryIds = []) {
     const isTransitSelected = categoryIds.some((id) =>
-      ['transport', 'lrt-station', 'train-station', 'bus-station', 'monorail-station', 'transit'].includes(id)
+      ['transport', 'lrt-station', 'train-station', 'monorail-station', 'transit'].includes(id)
     );
     if (!isTransitSelected) {
-      const src = map.getSource('transit-routes');
-      if (src) src.setData({ type: 'FeatureCollection', features: [] });
+      clearTransitRoutes();
     }
   }
 
@@ -406,7 +544,7 @@ export function initMapFeature({
     if (!isAnalysisActive || !activeIsochroneGeometry || !lastRawPlacesData) {
       clearPOIs();
       updateTransitRoutes(null, selectedCategoryIds);
-      return;
+      return null;
     }
 
     updateTransitRoutes(activeIsochroneGeometry, selectedCategoryIds);
@@ -414,7 +552,7 @@ export function initMapFeature({
     const selectedSet = new Set(selectedCategoryIds);
     if (selectedSet.size === 0) {
       clearPOIs();
-      return;
+      return { total: 0, shownComplexes: [], typeBreakdown: [], places: [] };
     }
 
     const selectedCategoryObjects = ALL_CATEGORY_ITEMS.filter((c) => selectedSet.has(c.id));
@@ -424,7 +562,7 @@ export function initMapFeature({
       pois: filteredPOIs,
     };
 
-    renderPlaces(
+    return renderPlaces(
       filteredData,
       selectedCategoryObjects,
       currentOrigin.coords[1],
@@ -542,6 +680,11 @@ export function initMapFeature({
       source: data.source,
       complexes: stats.shownComplexes,
       typeBreakdown: stats.typeBreakdown,
+      places: stats.places || [],
+      isochroneGeometry: activeIsochroneGeometry,
+      origin: currentOrigin,
+      mode,
+      minutes,
     };
   }
 
@@ -596,6 +739,35 @@ export function initMapFeature({
       source: 'travel-isochrone',
       paint: {
         'line-color': ['match', ['get', 'contour'], 10, ISOCHRONE_COLORS[10], 20, ISOCHRONE_COLORS[20], 30, ISOCHRONE_COLORS[30], '#2563eb'],
+        'line-width': 2.5,
+      },
+    });
+
+    // Site B Isochrone Layer (For Site Comparison mode)
+    map.addSource('travel-isochrone-b', {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: [],
+      },
+    });
+
+    map.addLayer({
+      id: 'travel-isochrone-b-fill',
+      type: 'fill',
+      source: 'travel-isochrone-b',
+      paint: {
+        'fill-color': '#9333ea',
+        'fill-opacity': 0.16,
+      },
+    });
+
+    map.addLayer({
+      id: 'travel-isochrone-b-line',
+      type: 'line',
+      source: 'travel-isochrone-b',
+      paint: {
+        'line-color': '#9333ea',
         'line-width': 2.5,
       },
     });
@@ -725,15 +897,437 @@ export function initMapFeature({
     }
   }
 
+  function addComparativePlaceMarker(item, siteA, siteB) {
+    const cat = item.cat || {
+      color: '#2563eb',
+      label: item.categoryId || 'Place',
+      shape: 'circle',
+      shapeSymbol: '●',
+    };
+    const shape = cat.shape || 'circle';
+    const shapeColor = cat.color || '#2563eb';
+
+    const shapeSvgPin = getCategoryShapeSvg(shape, 14, shapeColor, '#ffffff');
+    const shapeSvgLabel = getCategoryShapeSvg(shape, 10, shapeColor, '#ffffff');
+
+    const siteBadgeColor = item.siteServed === 'both' ? '#ea580c' : item.siteServed === 'siteA' ? '#2563eb' : '#9333ea';
+    const siteBadgeBg = item.siteServed === 'both' ? '#fff7ed' : item.siteServed === 'siteA' ? '#eff6ff' : '#faf5ff';
+    const siteBadgeBorder = item.siteServed === 'both' ? '#fdba74' : item.siteServed === 'siteA' ? '#bfdbfe' : '#e9d5ff';
+    const siteTagText = item.siteServed === 'both' ? 'Shared: Sites A & B' : item.siteServed === 'siteA' ? `Site A: ${siteA.name}` : `Site B: ${siteB.name}`;
+
+    const el = document.createElement('div');
+    el.className = `amenity-pure-marker shape-marker-${shape}`;
+    el.innerHTML = `
+      <span class="amenity-shape-pin">${shapeSvgPin}</span>
+      <div class="amenity-pure-label" style="border-left: 3.5px solid ${shapeColor};">
+        <span class="amenity-pure-name">${item.name}</span>
+        <span class="amenity-pure-type" style="color: ${shapeColor}; background-color: ${shapeColor}18; border: 1px solid ${shapeColor}35; border-radius: 4px; padding: 1px 6px;">
+          <span class="amenity-type-shape">${shapeSvgLabel}</span>
+          ${cat.label}
+        </span>
+        <span style="font-size: 8.5px; font-weight: 700; color: ${siteBadgeColor}; background: ${siteBadgeBg}; border: 1px solid ${siteBadgeBorder}; border-radius: 3px; padding: 1px 4px; margin-top: 2px; width: fit-content;">
+          ${siteTagText}
+        </span>
+      </div>
+    `;
+
+    const popupHtml = `
+      <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 3px;">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 5px;">
+          ${getCategoryShapeSvg(shape, 15, shapeColor, '#ffffff')}
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #ffffff; background-color: ${shapeColor};">
+            ${cat.label}
+          </span>
+        </div>
+        <strong style="font-size: 13.5px; color: #0f172a; display: block; margin-bottom: 3px; font-weight: 800;">${item.name}</strong>
+        ${item.address ? `<div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">📍 ${item.address}</div>` : ''}
+        <div style="margin-top: 6px; padding: 5px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; color: ${siteBadgeColor}; background: ${siteBadgeBg}; border: 1px solid ${siteBadgeBorder};">
+          ${item.siteServed === 'both' ? `Serves BOTH ${siteA.name} and ${siteB.name}` : item.siteServed === 'siteA' ? `Reachable from Site A: ${siteA.name}` : `Reachable from Site B: ${siteB.name}`}
+        </div>
+      </div>
+    `;
+
+    const popup = new mapboxgl.Popup({ offset: 12, closeButton: true, maxWidth: '260px' })
+      .setHTML(popupHtml);
+
+    const marker = new mapboxgl.Marker({ element: el, anchor: 'left' })
+      .setLngLat([item.lon, item.lat])
+      .setPopup(popup)
+      .addTo(map);
+
+    activeMarkers.push(marker);
+  }
+
+  async function runDualSiteAnalysis({ siteA, siteB, mode = 'walking', minutes = 20, selectedCategoryIds = [] }) {
+    isComparisonActive = true;
+    isAnalysisActive = true;
+    lastTravelParams = { profile: mode, maxMinutes: minutes };
+    clearPOIs();
+    clearTransitRoutes();
+
+    if (originMarker) {
+      originMarker.remove();
+      originMarker = null;
+    }
+    if (siteAMarker) {
+      siteAMarker.remove();
+      siteAMarker = null;
+    }
+    if (siteBMarker) {
+      siteBMarker.remove();
+      siteBMarker = null;
+    }
+
+    siteAMarker = createSitePin(siteA, 'A', '#2563eb');
+    siteBMarker = createSitePin(siteB, 'B', '#9333ea');
+
+    // 1. Fetch Isochrones for Site A and Site B
+    const featsA = await fetchIsochrones(mode, siteA.coords[0], siteA.coords[1], apiKey, [minutes]);
+    if (!featsA || featsA.length === 0) {
+      throw new Error(`No isochrone returned for ${siteA.name}`);
+    }
+    const targetA = featsA.find((f) => f.properties?.contour === minutes) || featsA[0];
+
+    const featsB = await fetchIsochrones(mode, siteB.coords[0], siteB.coords[1], apiKey, [minutes]);
+    if (!featsB || featsB.length === 0) {
+      throw new Error(`No isochrone returned for ${siteB.name}`);
+    }
+    const targetB = featsB.find((f) => f.properties?.contour === minutes) || featsB[0];
+
+    // Update Mapbox layers
+    const srcA = map.getSource('travel-isochrone');
+    if (srcA) {
+      srcA.setData({ type: 'FeatureCollection', features: [targetA] });
+    }
+    const srcB = map.getSource('travel-isochrone-b');
+    if (srcB) {
+      srcB.setData({ type: 'FeatureCollection', features: [targetB] });
+    }
+
+    // Fit map bounds to encompass both isochrones
+    const boundsA = getGeojsonBounds(targetA.geometry);
+    const boundsB = getGeojsonBounds(targetB.geometry);
+    const combinedBounds = [
+      [Math.min(boundsA.west, boundsB.west), Math.min(boundsA.south, boundsB.south)],
+      [Math.max(boundsA.east, boundsB.east), Math.max(boundsA.north, boundsB.north)],
+    ];
+    map.fitBounds(combinedBounds, { padding: 90, duration: 800 });
+
+    // 2. Fetch and categorize places for both sites
+    const selectedSet = new Set(selectedCategoryIds);
+    const catMap = new Map(ALL_CATEGORY_ITEMS.map((c) => [c.id, c]));
+    const selectedCategoryObjects = ALL_CATEGORY_ITEMS.filter((c) => selectedSet.has(c.id));
+
+    const south = Math.min(boundsA.south, boundsB.south);
+    const west = Math.min(boundsA.west, boundsB.west);
+    const north = Math.max(boundsA.north, boundsB.north);
+    const east = Math.max(boundsA.east, boundsB.east);
+
+    const keyToUse = cleanApiKey(
+      googleApiKey ||
+      (import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY || '')
+    );
+    const cellBounds = new CellBounds(south, west, north, east);
+
+    let data = null;
+    try {
+      data = await loadFromGoogle(selectedCategoryObjects, cellBounds, null, keyToUse);
+    } catch (e) {
+      console.warn('Google Places load failed for comparison:', e);
+    }
+
+    if (!data || !data.pois || data.pois.length === 0) {
+      const fallbackPois = PLACES_DATA.filter((p) => selectedSet.has(p.categoryId)).map((p) => ({
+        key: p.id,
+        lat: p.coords[1],
+        lon: p.coords[0],
+        coords: p.coords,
+        cat: catMap.get(p.categoryId) || { id: p.categoryId, label: p.categoryId, color: '#2563eb' },
+        categoryId: p.categoryId,
+        name: p.name,
+        address: p.address,
+        floor: null,
+      }));
+      data = { pois: fallbackPois, complexes: [], source: 'Curated GIS Places' };
+    }
+
+    const placesA = [];
+    const placesB = [];
+    const allUnique = new Map();
+
+    for (const poi of data.pois) {
+      const inA = geometryContains(targetA.geometry, poi.lon, poi.lat);
+      const inB = geometryContains(targetB.geometry, poi.lon, poi.lat);
+
+      if (inA || inB) {
+        const item = {
+          ...poi,
+          point: [poi.lat, poi.lon],
+          band: minutes,
+          siteServed: inA && inB ? 'both' : inA ? 'siteA' : 'siteB',
+        };
+        if (inA) placesA.push(item);
+        if (inB) placesB.push(item);
+        allUnique.set(poi.key, item);
+      }
+    }
+
+    for (const item of allUnique.values()) {
+      addComparativePlaceMarker(item, siteA, siteB);
+    }
+
+    function buildSiteStats(placesList, geom) {
+      const counts = {};
+      for (const p of placesList) {
+        counts[p.categoryId] = (counts[p.categoryId] || 0) + 1;
+      }
+      const typeBreakdown = Object.keys(counts).map((catId) => {
+        const cat = catMap.get(catId) || { label: catId, id: catId };
+        return {
+          id: catId,
+          label: cat.label || catId,
+          color: cat.color || '#2563eb',
+          shape: cat.shape || 'circle',
+          shapeSymbol: cat.shapeSymbol || '●',
+          icon: cat.icon || '📍',
+          count: counts[catId],
+          groupName: cat.groupName || 'Amenity',
+        };
+      }).sort((a, b) => b.count - a.count);
+
+      return {
+        total: placesList.length,
+        places: placesList,
+        typeBreakdown,
+        isochroneGeometry: geom,
+      };
+    }
+
+    lastComparisonData = {
+      siteA,
+      siteB,
+      targetA,
+      targetB,
+      placesA,
+      placesB,
+      combinedBounds,
+    };
+
+    return {
+      statsA: buildSiteStats(placesA, targetA.geometry),
+      statsB: buildSiteStats(placesB, targetB.geometry),
+      isochroneGeometryA: targetA.geometry,
+      isochroneGeometryB: targetB.geometry,
+    };
+  }
+
+  let lastComparisonData = null;
+  let splitMapB = null;
+  let splitMapBMarkers = [];
+  let splitSyncListeners = null;
+
+  function startSplitMapB({ containerB }) {
+    if (!containerB || !lastComparisonData) return null;
+    if (splitMapB) {
+      stopSplitMapB();
+    }
+
+    const { siteB, targetB, placesB } = lastComparisonData;
+
+    // In split mode, base map represents Site A only; hide Site B isochrone and marker on base map
+    if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+      if (map.getLayer('travel-isochrone-b-fill')) {
+        map.setLayoutProperty('travel-isochrone-b-fill', 'visibility', 'none');
+      }
+      if (map.getLayer('travel-isochrone-b-line')) {
+        map.setLayoutProperty('travel-isochrone-b-line', 'visibility', 'none');
+      }
+    }
+    if (siteBMarker && siteBMarker.getElement()) {
+      siteBMarker.getElement().style.display = 'none';
+    }
+
+    splitMapB = new mapboxgl.Map({
+      container: containerB,
+      style: 'mapbox://styles/mapbox/light-v11',
+      center: map.getCenter(),
+      zoom: map.getZoom(),
+      bearing: map.getBearing(),
+      pitch: map.getPitch(),
+      antialias: true,
+      attributionControl: false,
+      preserveDrawingBuffer: true,
+    });
+
+    let isSyncing = false;
+    const syncAtoB = () => {
+      if (isSyncing || !splitMapB) return;
+      isSyncing = true;
+      splitMapB.jumpTo({
+        center: map.getCenter(),
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+      });
+      isSyncing = false;
+    };
+
+    const syncBtoA = () => {
+      if (isSyncing || !splitMapB) return;
+      isSyncing = true;
+      map.jumpTo({
+        center: splitMapB.getCenter(),
+        zoom: splitMapB.getZoom(),
+        bearing: splitMapB.getBearing(),
+        pitch: splitMapB.getPitch(),
+      });
+      isSyncing = false;
+    };
+
+    map.on('move', syncAtoB);
+    splitMapB.on('move', syncBtoA);
+
+    splitSyncListeners = { syncAtoB, syncBtoA };
+
+    splitMapB.on('load', () => {
+      splitMapB.addSource('split-isochrone-b', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: targetB ? [targetB] : [],
+        },
+      });
+
+      splitMapB.addLayer({
+        id: 'split-isochrone-b-fill',
+        type: 'fill',
+        source: 'split-isochrone-b',
+        paint: {
+          'fill-color': '#9333ea',
+          'fill-opacity': 0.22,
+        },
+      });
+
+      splitMapB.addLayer({
+        id: 'split-isochrone-b-line',
+        type: 'line',
+        source: 'split-isochrone-b',
+        paint: {
+          'line-color': '#9333ea',
+          'line-width': 2.5,
+        },
+      });
+
+      // Pin for Site B
+      const pinEl = document.createElement('div');
+      pinEl.className = 'user-origin-pin site-origin-pin site-origin-b';
+      pinEl.innerHTML = `
+        <div class="user-origin-pin-card" style="border-left: 3.5px solid #9333ea;">
+          <span style="background: #9333ea; color: #fff; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 2px;">SITE B</span>
+          <span class="user-origin-pin-title">${siteB.name}</span>
+          <span class="user-origin-pin-addr">📍 ${siteB.address || 'Kuala Lumpur'}</span>
+        </div>
+        <div class="user-origin-pin-icon" style="background: #9333ea; border-color: #fff;">B</div>
+        <div class="user-origin-pin-pulse" style="border-color: #9333ea;"></div>
+      `;
+
+      const mB = new mapboxgl.Marker({ element: pinEl, anchor: 'bottom' })
+        .setLngLat(siteB.coords)
+        .addTo(splitMapB);
+      splitMapBMarkers.push(mB);
+
+      // Places for Site B
+      if (placesB && placesB.length) {
+        for (const item of placesB) {
+          const cat = item.cat || { color: '#9333ea', label: item.categoryId || 'Place', shape: 'circle' };
+          const el = document.createElement('div');
+          el.className = 'amenity-pure-marker';
+          const shapeSvg = getCategoryShapeSvg(cat.shape || 'circle', 14, cat.color || '#9333ea', '#ffffff');
+          el.innerHTML = `
+            <div class="amenity-marker-anchor">${shapeSvg}</div>
+            <div class="amenity-label-card">
+              <span class="amenity-label-shape">${getCategoryShapeSvg(cat.shape || 'circle', 10, cat.color || '#9333ea', '#ffffff')}</span>
+              <span class="amenity-label-text">${item.name}</span>
+            </div>
+          `;
+          const marker = new mapboxgl.Marker({ element: el, anchor: 'left' })
+            .setLngLat([item.lon, item.lat])
+            .addTo(splitMapB);
+          splitMapBMarkers.push(marker);
+        }
+      }
+    });
+
+    return splitMapB;
+  }
+
+  function stopSplitMapB() {
+    if (splitSyncListeners) {
+      if (map && map.off) {
+        map.off('move', splitSyncListeners.syncAtoB);
+      }
+      splitSyncListeners = null;
+    }
+    splitMapBMarkers.forEach((m) => m.remove());
+    splitMapBMarkers = [];
+    if (splitMapB) {
+      splitMapB.remove();
+      splitMapB = null;
+    }
+
+    // Restore Site B layers and marker on base map
+    if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+      if (map.getLayer('travel-isochrone-b-fill')) {
+        map.setLayoutProperty('travel-isochrone-b-fill', 'visibility', 'visible');
+      }
+      if (map.getLayer('travel-isochrone-b-line')) {
+        map.setLayoutProperty('travel-isochrone-b-line', 'visibility', 'visible');
+      }
+    }
+    if (siteBMarker && siteBMarker.getElement()) {
+      siteBMarker.getElement().style.display = '';
+    }
+  }
+
+  function clearComparison() {
+    isComparisonActive = false;
+    stopSplitMapB();
+    lastComparisonData = null;
+    if (siteAMarker) {
+      siteAMarker.remove();
+      siteAMarker = null;
+    }
+    if (siteBMarker) {
+      siteBMarker.remove();
+      siteBMarker = null;
+    }
+    if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+      const srcB = map.getSource('travel-isochrone-b');
+      if (srcB) {
+        srcB.setData({ type: 'FeatureCollection', features: [] });
+      }
+    }
+    renderOriginMarker();
+  }
+
   return {
     map,
     getMode: () => mapMode,
     applyMapView,
     runAnalysis,
+    runDualSiteAnalysis,
+    startSplitMapB,
+    stopSplitMapB,
+    getComparisonData: () => lastComparisonData,
+    clearComparison,
     clearIsochrone,
+    clearTransitRoutes,
     updatePOIs,
     updateOrigin,
     toggleLabels,
+    getMapCanvas: () => map.getCanvas(),
+    getOrigin: () => currentOrigin,
+    getIsochroneGeometry: () => activeIsochroneGeometry,
     flyTo: (coords) => map.flyTo({ center: coords, duration: 800 }),
   };
 }
