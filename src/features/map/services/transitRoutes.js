@@ -206,6 +206,41 @@ export const TRANSIT_LINES = [
       [101.7118, 3.1285],
     ],
   },
+  {
+    id: 'ktm-komuter',
+    name: 'KTM Komuter Line (Line 1/2)',
+    color: '#0284c7',
+    stations: [
+      { name: 'Batu Caves', coords: [101.6815, 3.2370] },
+      { name: 'Taman Wahyu', coords: [101.6740, 3.2180] },
+      { name: 'Kampung Batu', coords: [101.6815, 3.2045] },
+      { name: 'Batu Kentonmen', coords: [101.6820, 3.1950] },
+      { name: 'Sentul', coords: [101.6910, 3.1785] },
+      { name: 'Putra', coords: [101.6925, 3.1670] },
+      { name: 'Bank Negara', coords: [101.6930, 3.1550] },
+      { name: 'Kuala Lumpur', coords: [101.6935, 3.1395] },
+      { name: 'KL Sentral', coords: [101.6865, 3.1342] },
+      { name: 'Mid Valley', coords: [101.6765, 3.1180] },
+      { name: 'Seputeh', coords: [101.6810, 3.1110] },
+      { name: 'Salak Selatan', coords: [101.7040, 3.0980] },
+      { name: 'Bandar Tasik Selatan', coords: [101.7110, 3.0760] },
+    ],
+    coordinates: [
+      [101.6815, 3.2370],
+      [101.6740, 3.2180],
+      [101.6815, 3.2045],
+      [101.6820, 3.1950],
+      [101.6910, 3.1785],
+      [101.6925, 3.1670],
+      [101.6930, 3.1550],
+      [101.6935, 3.1395],
+      [101.6865, 3.1342],
+      [101.6765, 3.1180],
+      [101.6810, 3.1110],
+      [101.7040, 3.0980],
+      [101.7110, 3.0760],
+    ],
+  },
 ];
 
 export function decodePolyline(encoded) {
@@ -365,50 +400,141 @@ export async function getActiveTransitRoutesWithGoogleFirst(isochroneGeometry, i
 }
 
 /**
- * Find all transit lines that pass through or are located near a given station
+ * Strictly checks whether an item is a genuine train / rail / transit station.
+ * Bus stops, bus terminals, and all non-transit places return false.
+ */
+export function isTransportStation(item) {
+  if (!item) return false;
+  const catId = item.categoryId || item.cat?.id || '';
+  const groupId = item.cat?.groupId || '';
+
+  // Rail transit stations:
+  if (['lrt-station', 'train-station', 'monorail-station'].includes(catId)) {
+    return true;
+  }
+
+  // Bus stations or bus stops do NOT have rail transit routes
+  if (catId === 'bus-station' || (item.name || '').toLowerCase().includes('bus')) {
+    return false;
+  }
+
+  if (Array.isArray(item.types)) {
+    const isRail = item.types.some((t) =>
+      ['subway_station', 'light_rail_station', 'train_station'].includes(t)
+    );
+    if (isRail) return true;
+  }
+
+  const name = (item.name || '').toLowerCase();
+  const hasRailKeyword =
+    name.includes('lrt') ||
+    name.includes('mrt') ||
+    name.includes('monorail') ||
+    name.includes('ktm') ||
+    name.includes('komuter') ||
+    name.includes('transit hub');
+
+  return hasRailKeyword;
+}
+
+export function cleanStationName(str) {
+  return (str || '')
+    .toLowerCase()
+    .replace(/stesen\s+/g, '')
+    .replace(/\s+station/g, '')
+    .replace(/\s+stn/g, '')
+    .replace(/\s+lrt/g, '')
+    .replace(/\s+mrt/g, '')
+    .replace(/\s+monorail/g, '')
+    .replace(/\s+ktm/g, '')
+    .replace(/transport\s+hub/g, '')
+    .replace(/komuter/g, '')
+    .replace(/rapidkl/g, '')
+    .replace(/[()&,/-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Returns ONLY the transit route line(s) that a transport station genuinely belongs to.
+ * Non-transport items and bus stops return empty array!
  */
 export function findLinesForStation(item) {
-  if (!item) return [];
-  const name = (item.name || '').toLowerCase();
+  if (!isTransportStation(item)) {
+    return [];
+  }
+
+  const rawName = (item.name || '').toLowerCase();
+  const cleanName = cleanStationName(rawName);
   const coords = item.coords || [item.lon, item.lat] || [0, 0];
   const lng = coords[0];
   const lat = coords[1];
 
   const matched = [];
+
+  const isExplicitMonorail = rawName.includes('monorail') || item.categoryId === 'monorail-station';
+  const isExplicitMrt = rawName.includes('mrt');
+  const isExplicitLrt = rawName.includes('lrt');
+  const isExplicitKtm = rawName.includes('ktm') || rawName.includes('komuter');
+
   for (const line of TRANSIT_LINES) {
-    const hasNameMatch = line.stations.some((st) => {
-      const stName = st.name.toLowerCase();
-      return name.includes(stName) || stName.includes(name);
-    });
+    // Mode constraints
+    if (isExplicitMonorail && line.id !== 'kl-monorail') {
+      continue;
+    }
+    if (isExplicitMrt && !line.id.startsWith('mrt-') && !rawName.includes('interchange') && !rawName.includes('hub')) {
+      continue;
+    }
+    if (isExplicitKtm && line.id !== 'ktm-komuter' && !rawName.includes('hub') && !rawName.includes('sentral')) {
+      continue;
+    }
 
-    const hasProximityMatch = lng && lat && line.stations.some((st) => {
-      const dLng = st.coords[0] - lng;
-      const dLat = st.coords[1] - lat;
-      return dLng * dLng + dLat * dLat < 0.00015; // ~1.2 km
-    });
+    // Check station names on this line
+    for (const st of line.stations) {
+      const stClean = cleanStationName(st.name);
 
-    if (hasNameMatch || hasProximityMatch) {
-      matched.push(line);
+      const exactMatch =
+        cleanName === stClean ||
+        (cleanName.length >= 4 && (cleanName.includes(stClean) || stClean.includes(cleanName)));
+
+      const isTrx =
+        (cleanName.includes('trx') || cleanName.includes('tun razak exchange')) &&
+        (stClean.includes('trx') || stClean.includes('tun razak exchange'));
+
+      if (exactMatch || isTrx) {
+        if (lng && lat && st.coords) {
+          const dLng = st.coords[0] - lng;
+          const dLat = st.coords[1] - lat;
+          const distSq = dLng * dLng + dLat * dLat;
+          if (distSq < 0.0003) {
+            if (!matched.some((m) => m.id === line.id)) {
+              matched.push(line);
+            }
+            break;
+          }
+        } else {
+          if (!matched.some((m) => m.id === line.id)) {
+            matched.push(line);
+          }
+          break;
+        }
+      }
     }
   }
 
-  // If no exact match but item is a transport station, match the closest line
+  // Fallback for unnamed / OSM stations strictly within ~150 meters
   if (!matched.length && lng && lat) {
-    let closestLine = null;
-    let minDist = Infinity;
     for (const line of TRANSIT_LINES) {
       for (const st of line.stations) {
         const dLng = st.coords[0] - lng;
         const dLat = st.coords[1] - lat;
         const distSq = dLng * dLng + dLat * dLat;
-        if (distSq < minDist) {
-          minDist = distSq;
-          closestLine = line;
+        if (distSq < 0.000004) {
+          if (!matched.some((m) => m.id === line.id)) {
+            matched.push(line);
+          }
         }
       }
-    }
-    if (closestLine && minDist < 0.0006) {
-      matched.push(closestLine);
     }
   }
 
@@ -417,83 +543,33 @@ export function findLinesForStation(item) {
 
 /**
  * Returns transit route lines specifically for a clicked station.
- * Uses Google Routes API first if apiKey provided, falling back to Mapbox line coordinates.
+ * ONLY returns routes if item is a transport station and belongs to the line.
  */
-export async function getTransitRouteForStation(stationItem, googleApiKey = '') {
+export async function getTransitRouteForStation(stationItem) {
+  if (!isTransportStation(stationItem)) {
+    return { type: 'FeatureCollection', features: [] };
+  }
+
   const lines = findLinesForStation(stationItem);
   if (!lines.length) {
     return { type: 'FeatureCollection', features: [] };
   }
 
-  if (googleApiKey) {
-    try {
-      const googleFeatures = [];
-      for (const line of lines) {
-        try {
-          const firstSt = line.stations[0];
-          const lastSt = line.stations[line.stations.length - 1];
-          const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Goog-Api-Key': googleApiKey,
-              'X-Goog-FieldMask': 'routes.polyline.encodedPolyline',
-            },
-            body: JSON.stringify({
-              origin: { location: { latLng: { latitude: firstSt.coords[1], longitude: firstSt.coords[0] } } },
-              destination: { location: { latLng: { latitude: lastSt.coords[1], longitude: lastSt.coords[0] } } },
-              travelMode: 'TRANSIT',
-            }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            const poly = data.routes?.[0]?.polyline?.encodedPolyline;
-            if (poly) {
-              const coords = decodePolyline(poly);
-              if (coords.length > 1) {
-                googleFeatures.push({
-                  type: 'Feature',
-                  id: line.id,
-                  properties: { id: line.id, name: line.name, color: line.color, source: 'google' },
-                  geometry: { type: 'LineString', coordinates: coords },
-                });
-                continue;
-              }
-            }
-          }
-        } catch {
-          // line fallback
-        }
-
-        // Line-level fallback
-        googleFeatures.push({
-          type: 'Feature',
-          id: line.id,
-          properties: { id: line.id, name: line.name, color: line.color, source: 'mapbox' },
-          geometry: { type: 'LineString', coordinates: line.coordinates },
-        });
-      }
-
-      if (googleFeatures.length > 0) {
-        return {
-          type: 'FeatureCollection',
-          features: googleFeatures,
-        };
-      }
-    } catch (err) {
-      console.warn('Google Maps transit routing failed, falling back to Mapbox service:', err);
-    }
-  }
-
-  // Mapbox service fallback
   return {
     type: 'FeatureCollection',
     features: lines.map((line) => ({
       type: 'Feature',
       id: line.id,
-      properties: { id: line.id, name: line.name, color: line.color, source: 'mapbox' },
-      geometry: { type: 'LineString', coordinates: line.coordinates },
+      properties: {
+        id: line.id,
+        name: line.name,
+        color: line.color,
+        source: 'mapbox',
+      },
+      geometry: {
+        type: 'LineString',
+        coordinates: line.coordinates,
+      },
     })),
   };
 }

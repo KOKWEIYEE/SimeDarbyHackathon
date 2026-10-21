@@ -360,6 +360,18 @@
   flex-shrink: 0;
 }
 
+<<<<<<< HEAD
+=======
+.chip-shape-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.84rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+>>>>>>> origin/Travel-Isochrone
 .chip-label {
   font-size: 0.8rem;
   font-weight: 600;
@@ -448,7 +460,11 @@
 /* Overlay Badge on Map */
 .overlay {
   position: absolute;
+<<<<<<< HEAD
   bottom: 82px;
+=======
+  bottom: 24px;
+>>>>>>> origin/Travel-Isochrone
   right: 24px;
   z-index: 10;
   padding: 14px 18px;
@@ -505,12 +521,55 @@
   color: #0f172a;
   font-size: 0.74rem;
   font-weight: 700;
+<<<<<<< HEAD
+=======
+}
+
+.overlay-shape-legend {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.legend-title {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+}
+
+.legend-items {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.legend-shape {
+  font-size: 0.78rem;
+  line-height: 1;
+>>>>>>> origin/Travel-Isochrone
 }
 
 .map-error {
   position: absolute;
   right: 24px;
+<<<<<<< HEAD
   bottom: 82px;
+=======
+  bottom: 24px;
+>>>>>>> origin/Travel-Isochrone
   z-index: 20;
   max-width: 420px;
   padding: 12px 14px;
@@ -541,6 +600,7 @@
 .user-origin-pin-card {
   background: #0f172a;
   color: #ffffff;
+<<<<<<< HEAD
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 0.74rem;
@@ -550,6 +610,51 @@
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.3);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   letter-spacing: -0.01em;
+=======
+  padding: 5px 12px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.35);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  letter-spacing: -0.01em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 250px;
+  text-align: center;
+}
+
+.user-origin-pin.site-a-pin .user-origin-pin-card {
+  background: #1e3a8a;
+  border-color: #60a5fa;
+}
+
+.user-origin-pin.site-b-pin .user-origin-pin-card {
+  background: #581c87;
+  border-color: #c084fc;
+}
+
+.user-origin-pin-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.user-origin-pin-addr {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: #cbd5e1;
+  line-height: 1.2;
+  margin-top: 2px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+>>>>>>> origin/Travel-Isochrone
 }
 
 .user-origin-pin-icon {
@@ -572,7 +677,11 @@
   filter: blur(1.5px);
 }
 
+<<<<<<< HEAD
 /* Pure Colour Labeled Amenity Markers inside Isochrone */
+=======
+/* Shape-based Amenity Markers inside Isochrone */
+>>>>>>> origin/Travel-Isochrone
 .amenity-pure-marker {
   display: flex !important;
   align-items: center;
@@ -588,6 +697,7 @@
   z-index: 100 !important;
 }
 
+<<<<<<< HEAD
 .amenity-pure-dot {
   width: 10px;
   height: 10px;
@@ -595,12 +705,30 @@
   border: 1px solid rgba(0, 0, 0, 0.2);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
+=======
+.amenity-shape-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.35));
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.amenity-pure-marker:hover .amenity-shape-pin {
+  transform: scale(1.2);
+}
+
+.cat-shape-svg {
+  display: block;
+>>>>>>> origin/Travel-Isochrone
 }
 
 .amenity-pure-label {
   margin-left: 6px;
   display: flex;
   flex-direction: column;
+<<<<<<< HEAD
   background: rgba(255, 255, 255, 0.96);
   padding: 2px 7px;
   border-radius: 5px;
@@ -616,17 +744,54 @@
   font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
+=======
+  background: rgba(255, 255, 255, 0.97);
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  pointer-events: auto;
+  cursor: pointer;
+  max-width: 175px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.amenity-pure-name {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+>>>>>>> origin/Travel-Isochrone
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .amenity-pure-type {
+<<<<<<< HEAD
   font-size: 0.58rem;
   font-weight: 700;
   line-height: 1.1;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+=======
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1.2;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.02em;
+}
+
+.amenity-type-shape {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+>>>>>>> origin/Travel-Isochrone
 }
 
 .amenity-pure-addr {

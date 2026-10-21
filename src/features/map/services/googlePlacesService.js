@@ -1,6 +1,6 @@
 import { makeComplex, floorFromText, geometryContains } from './complexesService.js';
 
-export const DEFAULT_GOOGLE_API_KEY = ''; // No embedded credential fallback.
+export const DEFAULT_GOOGLE_API_KEY = 'AIzaSyDP18ON6QtVd1iVJ4Pj20QvJSmx9e8DBEQ';
 export const GOOGLE_NEARBY_URL = 'https://places.googleapis.com/v1/places:searchNearby';
 export const GOOGLE_FIELDS =
   'places.id,places.displayName,places.location,places.types,places.primaryType,' +

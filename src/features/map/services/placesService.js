@@ -100,7 +100,6 @@ export async function searchNearbyPlaces({
       categoryId: p.categoryId,
       cat,
       address: p.address,
-      source: 'Local curated list (not live verified)',
       floor: p.floor || null,
       cuisine: p.cuisine || null,
     };
@@ -108,18 +107,14 @@ export async function searchNearbyPlaces({
 
   // Combine places without duplicates by coordinate proximity
   const allPlaces = [...rawPlaces];
-  let addedLocal = false;
   for (const loc of localCurated) {
-    if (loc.lat < searchBounds.south || loc.lat > searchBounds.north || loc.lon < searchBounds.west || loc.lon > searchBounds.east) continue;
     const exists = allPlaces.some(
       (p) => approxDistanceMeters(p.lat, p.lon, loc.lat, loc.lon) < 25
     );
     if (!exists) {
       allPlaces.push(loc);
-      addedLocal = true;
     }
   }
-  if (addedLocal) source = rawPlaces.length ? `${source} + local curated list (not live verified)` : 'Local curated list (not live verified)';
 
   // Filter against isochrone geometry if present
   let filteredPlaces = allPlaces;
