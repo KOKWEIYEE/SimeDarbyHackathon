@@ -1456,3 +1456,15 @@
     max-width: calc(100vw - 16px);
   }
 }
+
+/* Keep all three feature groups readable and independently scrollable. */
+.left-nav-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.left-nav-tabs .nav-tab-btn { min-width:0; padding:9px 4px; font-size:0.78rem; }
+.sustainability-tab-content { flex:1; min-height:0; overflow-y:auto; }
+.sustainability-tab-content[hidden] { display:none; }
+.sustainability-tab-content .place-search { padding:14px 18px; border-bottom:1px solid #dde4dd; }
+.sustainability-tab-content .place-search label { display:block; margin-bottom:8px; }
+.sustainability-tab-content .place-search-row { display:flex; gap:6px; }
+.sustainability-tab-content .place-search input { min-width:0; flex:1; padding:8px; }
+.sustainability-tab-content .place-search-result { width:100%; text-align:left; padding:10px; }
+.sustainability-tab-content .place-search small { display:block; }

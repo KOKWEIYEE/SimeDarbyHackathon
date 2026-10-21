@@ -1,7 +1,8 @@
-﻿import { useState } from 'react';
+import { useId, useState } from 'react';
 import { searchPlace } from './services/geocodingService.js';
 
-export default function PlaceSearch({onSelect}) {
+export default function PlaceSearch({onSelect, originOnly = false, selectionLabel}) {
+  const queryId = useId();
   const [query,setQuery]=useState('');
   const [target,setTarget]=useState('origin');
   const [busy,setBusy]=useState(false);
@@ -17,21 +18,21 @@ export default function PlaceSearch({onSelect}) {
   }
   return <div className="place-search">
     <form onSubmit={search}>
-      <label htmlFor="place-query">Search a place in Malaysia</label>
+      <label htmlFor={queryId}>Search a place in Malaysia</label>
       <div className="place-search-row">
-        <input id="place-query" disabled={busy} value={query} maxLength={200} placeholder="e.g. KL Sentral, Kuala Lumpur"
+        <input id={queryId} disabled={busy} value={query} maxLength={200} placeholder="e.g. KL Sentral, Kuala Lumpur"
           onChange={e=>{setQuery(e.target.value);setResult(null);setError('');}}/>
         <button disabled={busy||!query.trim()}>{busy?'Searching...':'Search'}</button>
       </div>
-      <label>Use as <select value={target} onChange={e=>setTarget(e.target.value)}>
+      {!originOnly && <label>Use as <select value={target} onChange={e=>setTarget(e.target.value)}>
         <option value="origin">Starting point</option><option value="destination">Destination</option>
-      </select></label>
+      </select></label>}
     </form>
     {error&&<p role="status">{error}</p>}
     {result&&<button className="place-search-result" onClick={()=>{onSelect(result,target);setResult(null);}}>
-      {result.name}<small>Use this location as {target}</small>{result.note&&<small>{result.note}</small>}
+      {result.name}<small>Use this location as {selectionLabel || target}</small>{result.note&&<small>{result.note}</small>}
     </button>}
-    <small>Search: Prasarana rail snapshot / OpenStreetMap contributors / Photon. Confirm the result before selecting.</small>
+    <small>Search: Prasarana rail snapshot / OpenStreetMap contributors / Nominatim. Confirm the result before selecting.</small>
   </div>;
 }
 

@@ -1,3 +1,6 @@
+import { resolveRouteAction } from './features/ai/routeAction.js';
+import SustainabilityPanel from './features/sustainability/Panel.jsx';
+import PlaceSearch from './features/map/PlaceSearch.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './features/ai/styles.css';
 import { initMapFeature } from './features/map/index.js';
@@ -11,7 +14,7 @@ import {
 import { calculateAmenitiesDensityScore } from './features/density/index.js';
 import { generatePdfAnalysisReport } from './features/export/index.js';
 import { calculateSiteComparison } from './features/comparison/index.js';
-import { callAiChatApi, isAiApiConfigured, getAiApiConfig } from './features/ai/index.js';
+import MessageText from './features/ai/MessageText.jsx';
 
 const TRAVEL_MODES = [
   { id: 'walking', label: 'Walk', speed: '4.5 km/h', desc: 'Pedestrian paths & sidewalks' },
@@ -63,13 +66,33 @@ export default function App() {
   const currentOriginRef = useRef(PRESET_LOCATIONS[0]);
 
   // Left Navigation Bar state
-  const [activeNavTab, setActiveNavTab] = useState('chat'); // 'chat' | 'travel'
+  const [activeNavTab, setActiveNavTab] = useState('travel'); // 'chat' | 'travel'
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFullSize, setIsFullSize] = useState(false);
 
   // Location selection state
   const [selectedLocation, setSelectedLocation] = useState(PRESET_LOCATIONS[0]);
 
+  const [destination, setDestination] = useState(null);
+  const [pickingDestination, setPickingDestination] = useState(false);
+  const pickingDestinationRef = useRef(false);
+  function toggleDestinationPick() {
+    pickingDestinationRef.current = !pickingDestinationRef.current;
+    setPickingDestination(pickingDestinationRef.current);
+  }
+  function selectSustainabilityPlace(place, target) {
+    if (target === 'destination') setDestination(place);
+    else {
+      setSelectedLocation(place);
+      currentOriginRef.current = place;
+      mapFeatureRef.current?.updateOrigin(place);
+      mapFeatureRef.current?.clearIsochrone();
+      mapFeatureRef.current?.clearComparison();
+      setAnalysisRun(false); setAnalysisResult(null); setDensityScore(null); setComparisonResult(null); setIsSplitViewActive(false);
+    }
+    pickingDestinationRef.current = false; setPickingDestination(false);
+    mapFeatureRef.current?.flyTo(place.coords);
+  }
   // Map and Travel state
   const [mapMode, setMapMode] = useState('2d');
   const [errorMessage, setErrorMessage] = useState('');
@@ -167,7 +190,8 @@ export default function App() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
-  const aiConfig = useMemo(() => getAiApiConfig(), []);
+  const chatBusyRef = useRef(false);
+  const [carbonComparison, setCarbonComparison] = useState(null);
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -194,6 +218,11 @@ export default function App() {
       errorBoxRef: mapErrorRef,
       onModeChange: setMapMode,
       onLocationPick: (customLoc) => {
+        if (pickingDestinationRef.current) {
+          setDestination(customLoc); pickingDestinationRef.current = false; setPickingDestination(false);
+          feature.updateOrigin(currentOriginRef.current);
+          return;
+        }
         // Move origin pin to clicked location; don't auto-run isochrone
         setSelectedLocation(customLoc);
         setAnalysisRun(false);
@@ -422,64 +451,45 @@ export default function App() {
     }
   };
 
-  // AI chat send handler with AI API integration & placeholder fallback
+  // Combined server-side OpenAI chatbot, independent of the incoming AI service.
   const handleSend = async (textToSend = null) => {
-    const nextMessage = (textToSend ?? draft).trim();
-    if (!nextMessage || isAiThinking) return;
-
-    const userMessage = {
-      id: Date.now(),
-      sender: 'user',
-      text: nextMessage,
-    };
-
-    setMessages((previousMessages) => [...previousMessages, userMessage]);
-    setDraft('');
-    setIsAiThinking(true);
-
+    const question = (textToSend ?? draft).trim();
+    if (!question || chatBusyRef.current) return;
+    chatBusyRef.current = true; setIsAiThinking(true);
+    const originAtRequest = currentOriginRef.current;
+    const history = messages.filter(m => (m.sender === 'user' || m.sender === 'bot') && m.id !== 1)
+      .slice(-12).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: (m.text + (m.instructions?.length ? '\nProvider itinerary:\n' + m.instructions.join('\n') : '')).slice(0,8000) }));
+    const context = { origin: selectedLocation, destination, travelMode, travelMinutes, selectedCategories,
+      sustainability: carbonComparison && JSON.stringify(carbonComparison.origin) === JSON.stringify(selectedLocation.coords) && JSON.stringify(carbonComparison.destination) === JSON.stringify(destination?.coords) ? carbonComparison : null,
+      analysis: analysisRun ? analysisResult : null,
+      densityScore: analysisRun ? densityScore : null,
+      isComparison: isComparing,
+      comparison: isComparing && comparisonResult ? {siteA:comparisonResult.siteA,siteB:comparisonResult.siteB,densityA:comparisonResult.densityA,densityB:comparisonResult.densityB,winner:comparisonResult.winner,scoreDiff:comparisonResult.scoreDiff,takeaways:comparisonResult.takeaways} : null,
+      note: 'Client snapshot may contain curated records; not a field survey.' };
+    setMessages(m => [...m, { id: Date.now(), sender: 'user', text: question }]); setDraft('');
     try {
-      const response = await callAiChatApi({
-        prompt: nextMessage,
-        messages: [...messages, userMessage],
-        context: {
-          locationName: selectedLocation.name,
-          locationAddress: selectedLocation.address,
-          travelMode,
-          travelMinutes,
-          totalPlaces: analysisResult?.total || PLACES_DATA.filter((p) => selectedCategories.includes(p.categoryId)).length,
-          densityScore,
-          selectedCategories,
-          isComparison,
-          comparisonResult,
-        },
-      });
-
-      const botReply = {
-        id: Date.now() + 1,
-        sender: 'bot',
-        text: response.text,
-        source: response.source,
-        model: response.model,
-      };
-
-      setMessages((previousMessages) => [...previousMessages, botReply]);
-    } catch (err) {
-      console.error('AI chat error:', err);
-      setMessages((previousMessages) => [
-        ...previousMessages,
-        {
-          id: Date.now() + 1,
-          sender: 'bot',
-          text: 'Unable to reach the AI chat service. Please check your network and API settings.',
-        },
-      ]);
-    } finally {
-      setIsAiThinking(false);
-    }
+      const response = await fetch('/api/assistant', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:question, history, context}), signal:AbortSignal.timeout(60000)});
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : 'AI service unavailable. Check the Python backend.');
+      if (!data?.response_text) throw new Error('AI returned an empty reply. Please retry.');
+      setMessages(m => [...m, {id:Date.now()+1, sender:'bot', text:data.response_text}]);
+      if (data.action) {
+        const resolved = await resolveRouteAction(data.action, {mapbox:(import.meta.env.VITE_MAPBOX_API_KEY || '').trim(), google:(import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY || '').trim()});
+        if (currentOriginRef.current !== originAtRequest) throw new Error('The selected location changed. Please ask again for the new location.');
+        selectSustainabilityPlace({...resolved.origin,id:'custom'}, 'origin');
+        setDestination(resolved.destination);
+        const r = resolved.route;
+        const text = `Matched starting point: ${resolved.origin.name}\nMatched destination: ${resolved.destination.name}\n` + (r.status === 'available' ? `${data.action.mode}: ${(r.distance/1000).toFixed(2)} km, about ${Math.round(r.duration/60)} minutes.\nSource: ${r.source}. Route estimates, not live GPS guidance. Check the matched entrances.` : `Route unavailable: ${r.reason}`);
+        setMessages(m => [...m, {id:Date.now()+2, sender:'bot', text, instructions:r.instructions}]);
+      }
+    } catch (error) {
+      setMessages(m => [...m, {id:Date.now()+3, sender:'error', text:error.name === 'TimeoutError' ? 'AI request timed out. Please retry.' : error.message}]);
+      setDraft(question);
+    } finally { chatBusyRef.current = false; setIsAiThinking(false); }
   };
 
   const handleKeyDown = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       handleSend();
     }
@@ -713,58 +723,22 @@ export default function App() {
             </div>
           </div>
 
-          <div className="panel-actions">
-            {/* Full-size toggle */}
-            <button
-              id="full-size-toggle"
-              className="icon-btn"
-              type="button"
-              aria-label={isFullSize ? 'Return to regular layout' : 'Toggle full size panel'}
-              title={isFullSize ? 'Compact view' : 'Full-screen view'}
-              onClick={() => setIsFullSize((previousState) => !previousState)}
-            >
-              {isFullSize ? '⤡' : '⤢'}
-            </button>
 
-            {/* Collapse sidebar button */}
-            <button
-              id="sidebar-collapse-toggle"
-              className="icon-btn"
-              type="button"
-              aria-label="Collapse navigation bar"
-              title="Collapse sidebar to view full map"
-              onClick={() => setIsSidebarCollapsed(true)}
-            >
-              ◀
-            </button>
-          </div>
         </div>
 
         {/* Navigation Bar Switcher: AI Chatbot & Time Travel (Compare Site integrated inside Time Travel) */}
         <nav className="left-nav-tabs" aria-label="Sidebar Navigation">
-          <button
-            id="tab-btn-chat"
-            type="button"
-            className={activeNavTab === 'chat' ? 'nav-tab-btn active' : 'nav-tab-btn'}
-            onClick={() => setActiveNavTab('chat')}
-          >
-            AI Chatbot
-          </button>
-
-          <button
-            id="tab-btn-travel"
-            type="button"
-            className={activeNavTab === 'travel' ? 'nav-tab-btn active' : 'nav-tab-btn'}
-            onClick={() => setActiveNavTab('travel')}
-          >
-            Time Travel
-          </button>
+          {[['travel','Time Travel'],['sustainability','Sustainability'],['chat','AI Chatbot']].map(([id,label]) => <button key={id} type="button" className={activeNavTab===id?'nav-tab-btn active':'nav-tab-btn'} aria-pressed={activeNavTab===id} onClick={()=>{setActiveNavTab(id);pickingDestinationRef.current=false;setPickingDestination(false);}}>{label}</button>)}
         </nav>
 
         {/* Panel Body */}
         <div className="panel-body">
+          <div className="sustainability-tab-content" hidden={activeNavTab!=='sustainability'}>
+            <PlaceSearch onSelect={selectSustainabilityPlace}/>
+            <SustainabilityPanel origin={selectedLocation} destination={destination} picking={pickingDestination} onPick={toggleDestinationPick} onComparison={setCarbonComparison}/>
+          </div>
           {/* TAB 1: AI CHATBOT */}
-          {activeNavTab === 'chat' ? (
+          {activeNavTab === 'sustainability' ? null : activeNavTab === 'chat' ? (
             <div className="chat-container">
 
               {/* Chat Message Scroll */}
@@ -807,7 +781,7 @@ export default function App() {
                 <div className="message-list">
                   {messages.map((message) => (
                     <div key={message.id} className={`message ${message.sender}`}>
-                      {message.text}
+                      <MessageText text={message.text}/>{message.instructions?.length > 0 && <ol>{message.instructions.map((instruction,index)=><li key={index}>{instruction}</li>)}</ol>}
                     </div>
                   ))}
                   {isAiThinking ? (
@@ -855,6 +829,8 @@ export default function App() {
               {/* Location Selection */}
               <div className="studio-section">
                 <span className="section-label">Analysis Location</span>
+                <PlaceSearch originOnly onSelect={place => selectSustainabilityPlace({ ...place, id: 'custom' }, 'origin')}/>
+
                 <div className="location-select-wrap">
                   <select
                     id="travel-location-select"
@@ -918,6 +894,14 @@ export default function App() {
 
                   {isComparing ? (
                     <div className="secondary-location-content">
+                      <PlaceSearch originOnly selectionLabel="comparison location (Site B)" onSelect={place => {
+                        setCompareSiteB({ ...place, id: 'comparison-search' });
+                        setComparisonResult(null);
+                        setIsSplitViewActive(false);
+                        mapFeatureRef.current?.clearComparison();
+                        mapFeatureRef.current?.flyTo(place.coords);
+                      }}/>
+
                       <div className="location-select-wrap with-pin">
                         <span className="field-pin">📍</span>
                         <select
@@ -936,6 +920,7 @@ export default function App() {
                             }
                           }}
                         >
+                          {!PRESET_LOCATIONS.some(loc => loc.id === compareSiteB.id) && <option value={compareSiteB.id}>{compareSiteB.name}</option>}
                           {PRESET_LOCATIONS.map((loc) => (
                             <option key={`comp-b-${loc.id}`} value={loc.id} disabled={loc.id === selectedLocation.id}>
                               {loc.name} {loc.id === selectedLocation.id ? '(Selected as Site A)' : ''}
