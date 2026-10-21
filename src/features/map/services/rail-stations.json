@@ -1,0 +1,1689 @@
+{
+  "source": "data.gov.my / Prasarana",
+  "input": "data/transport/rapid-rail-kl-stops.csv",
+  "stations": [
+    {
+      "id": "AG18",
+      "name": "AMPANG",
+      "mode": "LRT",
+      "coords": [
+        101.760049,
+        3.150318
+      ]
+    },
+    {
+      "id": "AG17",
+      "name": "CAHAYA",
+      "mode": "LRT",
+      "coords": [
+        101.756677,
+        3.140575
+      ]
+    },
+    {
+      "id": "AG16",
+      "name": "CEMPAKA",
+      "mode": "LRT",
+      "coords": [
+        101.752979,
+        3.138324
+      ]
+    },
+    {
+      "id": "AG15",
+      "name": "PANDAN INDAH",
+      "mode": "LRT",
+      "coords": [
+        101.746509,
+        3.134581
+      ]
+    },
+    {
+      "id": "AG14",
+      "name": "PANDAN JAYA",
+      "mode": "LRT",
+      "coords": [
+        101.739122,
+        3.130141
+      ]
+    },
+    {
+      "id": "AG13",
+      "name": "MALURI",
+      "mode": "LRT",
+      "coords": [
+        101.727283,
+        3.12329
+      ]
+    },
+    {
+      "id": "AG12",
+      "name": "MIHARJA",
+      "mode": "LRT",
+      "coords": [
+        101.717922,
+        3.120973
+      ]
+    },
+    {
+      "id": "AG11",
+      "name": "CHAN SOW LIN",
+      "mode": "LRT",
+      "coords": [
+        101.715637,
+        3.128105
+      ]
+    },
+    {
+      "id": "AG10",
+      "name": "PUDU",
+      "mode": "LRT",
+      "coords": [
+        101.711957,
+        3.134879
+      ]
+    },
+    {
+      "id": "AG9",
+      "name": "HANG TUAH",
+      "mode": "LRT",
+      "coords": [
+        101.705984,
+        3.140012
+      ]
+    },
+    {
+      "id": "AG8",
+      "name": "PLAZA RAKYAT",
+      "mode": "LRT",
+      "coords": [
+        101.702105,
+        3.144049
+      ]
+    },
+    {
+      "id": "AG7",
+      "name": "MASJID JAMEK",
+      "mode": "LRT",
+      "coords": [
+        101.696377,
+        3.14927
+      ]
+    },
+    {
+      "id": "AG6",
+      "name": "BANDARAYA - UOB",
+      "mode": "LRT",
+      "coords": [
+        101.694485,
+        3.155567
+      ]
+    },
+    {
+      "id": "AG5",
+      "name": "SULTAN ISMAIL",
+      "mode": "LRT",
+      "coords": [
+        101.694109,
+        3.161245
+      ]
+    },
+    {
+      "id": "AG4",
+      "name": "PWTC",
+      "mode": "LRT",
+      "coords": [
+        101.693586,
+        3.166333
+      ]
+    },
+    {
+      "id": "AG3",
+      "name": "TITIWANGSA",
+      "mode": "LRT",
+      "coords": [
+        101.695367,
+        3.173497
+      ]
+    },
+    {
+      "id": "AG2",
+      "name": "SENTUL",
+      "mode": "LRT",
+      "coords": [
+        101.695542,
+        3.178484
+      ]
+    },
+    {
+      "id": "AG1",
+      "name": "SENTUL TIMUR",
+      "mode": "LRT",
+      "coords": [
+        101.695217,
+        3.185897
+      ]
+    },
+    {
+      "id": "KJ37",
+      "name": "PUTRA HEIGHTS",
+      "mode": "LRT",
+      "coords": [
+        101.575462,
+        2.996227
+      ]
+    },
+    {
+      "id": "KJ36",
+      "name": "SUBANG ALAM",
+      "mode": "LRT",
+      "coords": [
+        101.572281,
+        3.009421
+      ]
+    },
+    {
+      "id": "KJ35",
+      "name": "ALAM MEGAH",
+      "mode": "LRT",
+      "coords": [
+        101.572029,
+        3.023151
+      ]
+    },
+    {
+      "id": "KJ34",
+      "name": "USJ 21",
+      "mode": "LRT",
+      "coords": [
+        101.581711,
+        3.029881
+      ]
+    },
+    {
+      "id": "KJ33",
+      "name": "WAWASAN",
+      "mode": "LRT",
+      "coords": [
+        101.588348,
+        3.035062
+      ]
+    },
+    {
+      "id": "KJ32",
+      "name": "TAIPAN",
+      "mode": "LRT",
+      "coords": [
+        101.590233,
+        3.04815
+      ]
+    },
+    {
+      "id": "KJ31",
+      "name": "USJ 7",
+      "mode": "LRT",
+      "coords": [
+        101.592194,
+        3.054956
+      ]
+    },
+    {
+      "id": "KJ30",
+      "name": "SS 18",
+      "mode": "LRT",
+      "coords": [
+        101.585945,
+        3.067182
+      ]
+    },
+    {
+      "id": "KJ29",
+      "name": "SS 15",
+      "mode": "LRT",
+      "coords": [
+        101.585983,
+        3.075972
+      ]
+    },
+    {
+      "id": "KJ28",
+      "name": "SUBANG JAYA",
+      "mode": "LRT",
+      "coords": [
+        101.588127,
+        3.08466
+      ]
+    },
+    {
+      "id": "KJ27",
+      "name": "GLENMARIE",
+      "mode": "LRT",
+      "coords": [
+        101.590622,
+        3.094732
+      ]
+    },
+    {
+      "id": "KJ26",
+      "name": "ARA DAMANSARA",
+      "mode": "LRT",
+      "coords": [
+        101.586372,
+        3.108643
+      ]
+    },
+    {
+      "id": "KJ25",
+      "name": "LEMBAH SUBANG",
+      "mode": "LRT",
+      "coords": [
+        101.591034,
+        3.112094
+      ]
+    },
+    {
+      "id": "KJ24",
+      "name": "KELANA JAYA",
+      "mode": "LRT",
+      "coords": [
+        101.6043,
+        3.112497
+      ]
+    },
+    {
+      "id": "KJ23",
+      "name": "TAMAN BAHAGIA",
+      "mode": "LRT",
+      "coords": [
+        101.612856,
+        3.11079
+      ]
+    },
+    {
+      "id": "KJ22",
+      "name": "TAMAN PARAMOUNT",
+      "mode": "LRT",
+      "coords": [
+        101.623192,
+        3.104716
+      ]
+    },
+    {
+      "id": "KJ21",
+      "name": "ASIA JAYA",
+      "mode": "LRT",
+      "coords": [
+        101.637695,
+        3.104343
+      ]
+    },
+    {
+      "id": "KJ20",
+      "name": "TAMAN JAYA",
+      "mode": "LRT",
+      "coords": [
+        101.645248,
+        3.104086
+      ]
+    },
+    {
+      "id": "KJ19",
+      "name": "UNIVERSITI",
+      "mode": "LRT",
+      "coords": [
+        101.661639,
+        3.114616
+      ]
+    },
+    {
+      "id": "KJ18",
+      "name": "KERINCHI",
+      "mode": "LRT",
+      "coords": [
+        101.668572,
+        3.115506
+      ]
+    },
+    {
+      "id": "KJ17",
+      "name": "ABDULLAH HUKUM",
+      "mode": "LRT",
+      "coords": [
+        101.672897,
+        3.118735
+      ]
+    },
+    {
+      "id": "KJ16",
+      "name": "BANGSAR - BANK RAKYAT",
+      "mode": "LRT",
+      "coords": [
+        101.679062,
+        3.127588
+      ]
+    },
+    {
+      "id": "KJ15",
+      "name": "KL SENTRAL - REDONE",
+      "mode": "LRT",
+      "coords": [
+        101.68625,
+        3.13442
+      ]
+    },
+    {
+      "id": "KJ14",
+      "name": "PASAR SENI",
+      "mode": "LRT",
+      "coords": [
+        101.69531,
+        3.142439
+      ]
+    },
+    {
+      "id": "KJ13",
+      "name": "MASJID JAMEK",
+      "mode": "LRT",
+      "coords": [
+        101.696815,
+        3.149714
+      ]
+    },
+    {
+      "id": "KJ12",
+      "name": "DANG WANGI",
+      "mode": "LRT",
+      "coords": [
+        101.701975,
+        3.156942
+      ]
+    },
+    {
+      "id": "KJ11",
+      "name": "KAMPUNG BARU - CBP COOPBANK PERTAMA",
+      "mode": "LRT",
+      "coords": [
+        101.706608,
+        3.161386
+      ]
+    },
+    {
+      "id": "KJ10",
+      "name": "KLCC",
+      "mode": "LRT",
+      "coords": [
+        101.713287,
+        3.158935
+      ]
+    },
+    {
+      "id": "KJ9",
+      "name": "AMPANG PARK",
+      "mode": "LRT",
+      "coords": [
+        101.719017,
+        3.159894
+      ]
+    },
+    {
+      "id": "KJ8",
+      "name": "DAMAI",
+      "mode": "LRT",
+      "coords": [
+        101.724489,
+        3.164406
+      ]
+    },
+    {
+      "id": "KJ7",
+      "name": "DATO' KERAMAT",
+      "mode": "LRT",
+      "coords": [
+        101.73184,
+        3.16509
+      ]
+    },
+    {
+      "id": "KJ6",
+      "name": "JELATEK",
+      "mode": "LRT",
+      "coords": [
+        101.735344,
+        3.167204
+      ]
+    },
+    {
+      "id": "KJ5",
+      "name": "SETIAWANGSA",
+      "mode": "LRT",
+      "coords": [
+        101.73584,
+        3.17576
+      ]
+    },
+    {
+      "id": "KJ4",
+      "name": "SRI RAMPAI",
+      "mode": "LRT",
+      "coords": [
+        101.73747,
+        3.199176
+      ]
+    },
+    {
+      "id": "KJ3",
+      "name": "WANGSA MAJU",
+      "mode": "LRT",
+      "coords": [
+        101.731796,
+        3.205751
+      ]
+    },
+    {
+      "id": "KJ2",
+      "name": "TAMAN MELATI",
+      "mode": "LRT",
+      "coords": [
+        101.72197,
+        3.219558
+      ]
+    },
+    {
+      "id": "KJ1",
+      "name": "GOMBAK",
+      "mode": "LRT",
+      "coords": [
+        101.724427,
+        3.231793
+      ]
+    },
+    {
+      "id": "SP31",
+      "name": "PUTRA HEIGHTS",
+      "mode": "LRT",
+      "coords": [
+        101.575521,
+        2.996016
+      ]
+    },
+    {
+      "id": "SP29",
+      "name": "PUCHONG PRIMA",
+      "mode": "LRT",
+      "coords": [
+        101.596692,
+        2.999808
+      ]
+    },
+    {
+      "id": "SP28",
+      "name": "PUCHONG PERDANA",
+      "mode": "LRT",
+      "coords": [
+        101.605021,
+        3.007913
+      ]
+    },
+    {
+      "id": "SP27",
+      "name": "BANDAR PUTERI",
+      "mode": "LRT",
+      "coords": [
+        101.612855,
+        3.017111
+      ]
+    },
+    {
+      "id": "SP26",
+      "name": "TAMAN PERINDUSTRIAN PUCHONG",
+      "mode": "LRT",
+      "coords": [
+        101.613514,
+        3.022814
+      ]
+    },
+    {
+      "id": "SP25",
+      "name": "PUSAT BANDAR PUCHONG",
+      "mode": "LRT",
+      "coords": [
+        101.616057,
+        3.033194
+      ]
+    },
+    {
+      "id": "SP24",
+      "name": "IOI PUCHONG JAYA",
+      "mode": "LRT",
+      "coords": [
+        101.62095,
+        3.048101
+      ]
+    },
+    {
+      "id": "SP22",
+      "name": "KINRARA",
+      "mode": "LRT",
+      "coords": [
+        101.644294,
+        3.050506
+      ]
+    },
+    {
+      "id": "SP21",
+      "name": "ALAM SUTERA",
+      "mode": "LRT",
+      "coords": [
+        101.656468,
+        3.0547
+      ]
+    },
+    {
+      "id": "SP20",
+      "name": "MUHIBBAH",
+      "mode": "LRT",
+      "coords": [
+        101.662552,
+        3.062229
+      ]
+    },
+    {
+      "id": "SP19",
+      "name": "AWAN BESAR",
+      "mode": "LRT",
+      "coords": [
+        101.670555,
+        3.062131
+      ]
+    },
+    {
+      "id": "SP18",
+      "name": "SRI PETALING",
+      "mode": "LRT",
+      "coords": [
+        101.687074,
+        3.061445
+      ]
+    },
+    {
+      "id": "SP17",
+      "name": "BUKIT JALIL",
+      "mode": "LRT",
+      "coords": [
+        101.692125,
+        3.058196
+      ]
+    },
+    {
+      "id": "SP16",
+      "name": "SUNGAI BESI",
+      "mode": "LRT",
+      "coords": [
+        101.708062,
+        3.063842
+      ]
+    },
+    {
+      "id": "SP15",
+      "name": "BANDAR TASIK SELATAN",
+      "mode": "LRT",
+      "coords": [
+        101.711107,
+        3.076058
+      ]
+    },
+    {
+      "id": "SP14",
+      "name": "BANDAR TUN RAZAK",
+      "mode": "LRT",
+      "coords": [
+        101.712466,
+        3.089576
+      ]
+    },
+    {
+      "id": "SP13",
+      "name": "SALAK SELATAN",
+      "mode": "LRT",
+      "coords": [
+        101.706179,
+        3.102201
+      ]
+    },
+    {
+      "id": "SP12",
+      "name": "CHERAS",
+      "mode": "LRT",
+      "coords": [
+        101.714178,
+        3.112609
+      ]
+    },
+    {
+      "id": "SP11",
+      "name": "CHAN SOW LIN",
+      "mode": "LRT",
+      "coords": [
+        101.715637,
+        3.128105
+      ]
+    },
+    {
+      "id": "SP10",
+      "name": "PUDU",
+      "mode": "LRT",
+      "coords": [
+        101.711957,
+        3.134879
+      ]
+    },
+    {
+      "id": "SP9",
+      "name": "HANG TUAH",
+      "mode": "LRT",
+      "coords": [
+        101.705984,
+        3.140012
+      ]
+    },
+    {
+      "id": "SP8",
+      "name": "PLAZA RAKYAT",
+      "mode": "LRT",
+      "coords": [
+        101.702105,
+        3.144049
+      ]
+    },
+    {
+      "id": "SP7",
+      "name": "MASJID JAMEK",
+      "mode": "LRT",
+      "coords": [
+        101.696377,
+        3.14927
+      ]
+    },
+    {
+      "id": "SP6",
+      "name": "BANDARAYA - UOB",
+      "mode": "LRT",
+      "coords": [
+        101.694485,
+        3.155567
+      ]
+    },
+    {
+      "id": "SP5",
+      "name": "SULTAN ISMAIL",
+      "mode": "LRT",
+      "coords": [
+        101.694109,
+        3.161245
+      ]
+    },
+    {
+      "id": "SP4",
+      "name": "PWTC",
+      "mode": "LRT",
+      "coords": [
+        101.693586,
+        3.166333
+      ]
+    },
+    {
+      "id": "SP3",
+      "name": "TITIWANGSA",
+      "mode": "LRT",
+      "coords": [
+        101.695367,
+        3.173497
+      ]
+    },
+    {
+      "id": "SP2",
+      "name": "SENTUL",
+      "mode": "LRT",
+      "coords": [
+        101.695542,
+        3.178484
+      ]
+    },
+    {
+      "id": "SP1",
+      "name": "SENTUL TIMUR",
+      "mode": "LRT",
+      "coords": [
+        101.695217,
+        3.185897
+      ]
+    },
+    {
+      "id": "KG04",
+      "name": "KWASA DAMANSARA",
+      "mode": "MRT",
+      "coords": [
+        101.572052,
+        3.176146
+      ]
+    },
+    {
+      "id": "KG05",
+      "name": "KWASA SENTRAL",
+      "mode": "MRT",
+      "coords": [
+        101.564651,
+        3.170112
+      ]
+    },
+    {
+      "id": "KG06",
+      "name": "KOTA DAMANSARA",
+      "mode": "MRT",
+      "coords": [
+        101.57869,
+        3.150134
+      ]
+    },
+    {
+      "id": "KG07",
+      "name": "SURIAN",
+      "mode": "MRT",
+      "coords": [
+        101.593925,
+        3.14948
+      ]
+    },
+    {
+      "id": "KG08",
+      "name": "MUTIARA DAMANSARA",
+      "mode": "MRT",
+      "coords": [
+        101.609077,
+        3.155301
+      ]
+    },
+    {
+      "id": "KG09",
+      "name": "BANDAR UTAMA",
+      "mode": "MRT",
+      "coords": [
+        101.618599,
+        3.14671
+      ]
+    },
+    {
+      "id": "KG10",
+      "name": "TAMAN TUN DR ISMAIL",
+      "mode": "MRT",
+      "coords": [
+        101.630539,
+        3.13613
+      ]
+    },
+    {
+      "id": "KG12",
+      "name": "PHILEO DAMANSARA",
+      "mode": "MRT",
+      "coords": [
+        101.642471,
+        3.129864
+      ]
+    },
+    {
+      "id": "KG13",
+      "name": "PUSAT BANDAR DAMANSARA",
+      "mode": "MRT",
+      "coords": [
+        101.662857,
+        3.143444
+      ]
+    },
+    {
+      "id": "KG14",
+      "name": "SEMANTAN",
+      "mode": "MRT",
+      "coords": [
+        101.665497,
+        3.150977
+      ]
+    },
+    {
+      "id": "KG15",
+      "name": "MUZIUM NEGARA",
+      "mode": "MRT",
+      "coords": [
+        101.687336,
+        3.137317
+      ]
+    },
+    {
+      "id": "KG16",
+      "name": "PASAR SENI",
+      "mode": "MRT",
+      "coords": [
+        101.6955642,
+        3.142293265
+      ]
+    },
+    {
+      "id": "KG17",
+      "name": "MERDEKA",
+      "mode": "MRT",
+      "coords": [
+        101.70205,
+        3.141969
+      ]
+    },
+    {
+      "id": "KG18A",
+      "name": "BUKIT BINTANG ",
+      "mode": "MRT",
+      "coords": [
+        101.710947,
+        3.146503
+      ]
+    },
+    {
+      "id": "KG20",
+      "name": "TUN RAZAK EXCHANGE",
+      "mode": "MRT",
+      "coords": [
+        101.720156,
+        3.142403
+      ]
+    },
+    {
+      "id": "KG21",
+      "name": "COCHRANE",
+      "mode": "MRT",
+      "coords": [
+        101.722962,
+        3.132829
+      ]
+    },
+    {
+      "id": "KG22",
+      "name": "MALURI",
+      "mode": "MRT",
+      "coords": [
+        101.727809,
+        3.123623
+      ]
+    },
+    {
+      "id": "KG23",
+      "name": "TAMAN PERTAMA",
+      "mode": "MRT",
+      "coords": [
+        101.729371,
+        3.112547
+      ]
+    },
+    {
+      "id": "KG24",
+      "name": "TAMAN MIDAH",
+      "mode": "MRT",
+      "coords": [
+        101.732186,
+        3.104505
+      ]
+    },
+    {
+      "id": "KG25",
+      "name": "TAMAN MUTIARA",
+      "mode": "MRT",
+      "coords": [
+        101.740453,
+        3.090989
+      ]
+    },
+    {
+      "id": "KG26",
+      "name": "TAMAN CONNAUGHT",
+      "mode": "MRT",
+      "coords": [
+        101.74522,
+        3.079172
+      ]
+    },
+    {
+      "id": "KG27",
+      "name": "TAMAN SUNTEX",
+      "mode": "MRT",
+      "coords": [
+        101.763552,
+        3.071578
+      ]
+    },
+    {
+      "id": "KG28",
+      "name": "SRI RAYA",
+      "mode": "MRT",
+      "coords": [
+        101.772899,
+        3.062273
+      ]
+    },
+    {
+      "id": "KG29",
+      "name": "BANDAR TUN HUSSEIN ONN",
+      "mode": "MRT",
+      "coords": [
+        101.775109,
+        3.048223
+      ]
+    },
+    {
+      "id": "KG30",
+      "name": "BATU 11 CHERAS",
+      "mode": "MRT",
+      "coords": [
+        101.773383,
+        3.041339
+      ]
+    },
+    {
+      "id": "KG31",
+      "name": "BUKIT DUKUNG",
+      "mode": "MRT",
+      "coords": [
+        101.771072,
+        3.026413
+      ]
+    },
+    {
+      "id": "KG33",
+      "name": "SUNGAI JERNIH",
+      "mode": "MRT",
+      "coords": [
+        101.783857,
+        3.000948
+      ]
+    },
+    {
+      "id": "KG34",
+      "name": "STADIUM KAJANG",
+      "mode": "MRT",
+      "coords": [
+        101.786338,
+        2.994514
+      ]
+    },
+    {
+      "id": "KG35",
+      "name": "KAJANG",
+      "mode": "MRT",
+      "coords": [
+        101.790278,
+        2.982778
+      ]
+    },
+    {
+      "id": "PY01",
+      "name": "KWASA DAMANSARA",
+      "mode": "MRT",
+      "coords": [
+        101.5721456,
+        3.1763324
+      ]
+    },
+    {
+      "id": "PY03",
+      "name": "KAMPUNG SELAMAT",
+      "mode": "MRT",
+      "coords": [
+        101.578499,
+        3.197266
+      ]
+    },
+    {
+      "id": "PY04",
+      "name": "SUNGAI BULOH",
+      "mode": "MRT",
+      "coords": [
+        101.581779,
+        3.206429
+      ]
+    },
+    {
+      "id": "PY05",
+      "name": "DAMANSARA DAMAI",
+      "mode": "MRT",
+      "coords": [
+        101.592623,
+        3.199892
+      ]
+    },
+    {
+      "id": "PY06",
+      "name": "SRI DAMANSARA BARAT",
+      "mode": "MRT",
+      "coords": [
+        101.608302,
+        3.198197
+      ]
+    },
+    {
+      "id": "PY07",
+      "name": "SRI DAMANSARA SENTRAL",
+      "mode": "MRT",
+      "coords": [
+        101.621396,
+        3.198815
+      ]
+    },
+    {
+      "id": "PY08",
+      "name": "SRI DAMANSARA TIMUR",
+      "mode": "MRT",
+      "coords": [
+        101.628716,
+        3.207832
+      ]
+    },
+    {
+      "id": "PY09",
+      "name": "METRO PRIMA",
+      "mode": "MRT",
+      "coords": [
+        101.639402,
+        3.214438
+      ]
+    },
+    {
+      "id": "PY10",
+      "name": "KEPONG BARU",
+      "mode": "MRT",
+      "coords": [
+        101.648193,
+        3.211663
+      ]
+    },
+    {
+      "id": "PY11",
+      "name": "JINJANG",
+      "mode": "MRT",
+      "coords": [
+        101.655829,
+        3.209544
+      ]
+    },
+    {
+      "id": "PY12",
+      "name": "SRI DELIMA",
+      "mode": "MRT",
+      "coords": [
+        101.665749,
+        3.207108
+      ]
+    },
+    {
+      "id": "PY13",
+      "name": "KAMPUNG BATU",
+      "mode": "MRT",
+      "coords": [
+        101.675473,
+        3.205521
+      ]
+    },
+    {
+      "id": "PY14",
+      "name": "KENTOMEN",
+      "mode": "MRT",
+      "coords": [
+        101.6797,
+        3.19563
+      ]
+    },
+    {
+      "id": "PY15",
+      "name": "JALAN IPOH",
+      "mode": "MRT",
+      "coords": [
+        101.681145,
+        3.189319
+      ]
+    },
+    {
+      "id": "PY16",
+      "name": "SENTUL BARAT",
+      "mode": "MRT",
+      "coords": [
+        101.684742,
+        3.179369
+      ]
+    },
+    {
+      "id": "PY17",
+      "name": "TITIWANGSA",
+      "mode": "MRT",
+      "coords": [
+        101.69581,
+        3.17408
+      ]
+    },
+    {
+      "id": "PY18",
+      "name": "HOSPITAL KUALA LUMPUR",
+      "mode": "MRT",
+      "coords": [
+        101.70239,
+        3.17405
+      ]
+    },
+    {
+      "id": "PY19",
+      "name": "RAJA UDA",
+      "mode": "MRT",
+      "coords": [
+        101.71017,
+        3.16794
+      ]
+    },
+    {
+      "id": "PY20",
+      "name": "AMPANG PARK",
+      "mode": "MRT",
+      "coords": [
+        101.71781,
+        3.16225
+      ]
+    },
+    {
+      "id": "PY21",
+      "name": "PERSIARAN KLCC",
+      "mode": "MRT",
+      "coords": [
+        101.71834,
+        3.15712
+      ]
+    },
+    {
+      "id": "PY22",
+      "name": "CONLAY",
+      "mode": "MRT",
+      "coords": [
+        101.71801,
+        3.15145
+      ]
+    },
+    {
+      "id": "PY23",
+      "name": "TUN RAZAK EXCHANGE",
+      "mode": "MRT",
+      "coords": [
+        101.72034,
+        3.14289
+      ]
+    },
+    {
+      "id": "PY24",
+      "name": "CHAN SOW LIN",
+      "mode": "MRT",
+      "coords": [
+        101.71663,
+        3.12839
+      ]
+    },
+    {
+      "id": "PY27",
+      "name": "KUCHAI",
+      "mode": "MRT",
+      "coords": [
+        101.694124,
+        3.089546
+      ]
+    },
+    {
+      "id": "PY28",
+      "name": "TAMAN NAGA EMAS",
+      "mode": "MRT",
+      "coords": [
+        101.699867,
+        3.077688
+      ]
+    },
+    {
+      "id": "PY29",
+      "name": "SUNGAI BESI",
+      "mode": "MRT",
+      "coords": [
+        101.7084,
+        3.063737
+      ]
+    },
+    {
+      "id": "PY31",
+      "name": "SERDANG RAYA UTARA",
+      "mode": "MRT",
+      "coords": [
+        101.704928,
+        3.041674
+      ]
+    },
+    {
+      "id": "PY32",
+      "name": "SERDANG RAYA SELATAN",
+      "mode": "MRT",
+      "coords": [
+        101.707514,
+        3.028463
+      ]
+    },
+    {
+      "id": "PY33",
+      "name": "SERDANG JAYA",
+      "mode": "MRT",
+      "coords": [
+        101.709,
+        3.0216
+      ]
+    },
+    {
+      "id": "PY34",
+      "name": "UPM",
+      "mode": "MRT",
+      "coords": [
+        101.705396,
+        3.008489
+      ]
+    },
+    {
+      "id": "PY36",
+      "name": "TAMAN EQUINE",
+      "mode": "MRT",
+      "coords": [
+        101.67244,
+        2.98942
+      ]
+    },
+    {
+      "id": "PY37",
+      "name": "PUTRA PERMAI",
+      "mode": "MRT",
+      "coords": [
+        101.66099,
+        2.98339
+      ]
+    },
+    {
+      "id": "PY38",
+      "name": "16 SIERRA",
+      "mode": "MRT",
+      "coords": [
+        101.654812,
+        2.964974
+      ]
+    },
+    {
+      "id": "PY39",
+      "name": "CYBERJAYA UTARA",
+      "mode": "MRT",
+      "coords": [
+        101.6573,
+        2.95
+      ]
+    },
+    {
+      "id": "PY40",
+      "name": "CYBERJAYA CITY CENTRE",
+      "mode": "MRT",
+      "coords": [
+        101.6659,
+        2.9384
+      ]
+    },
+    {
+      "id": "PY41",
+      "name": "PUTRAJAYA SENTRAL",
+      "mode": "MRT",
+      "coords": [
+        101.6715,
+        2.9313
+      ]
+    },
+    {
+      "id": "MR1",
+      "name": "KL SENTRAL",
+      "mode": "MR",
+      "coords": [
+        101.687817,
+        3.132852
+      ]
+    },
+    {
+      "id": "MR2",
+      "name": "TUN SAMBANTHAN",
+      "mode": "MR",
+      "coords": [
+        101.69085,
+        3.13132
+      ]
+    },
+    {
+      "id": "MR3",
+      "name": "MAHARAJALELA",
+      "mode": "MR",
+      "coords": [
+        101.699268,
+        3.138743
+      ]
+    },
+    {
+      "id": "MR4",
+      "name": "HANG TUAH",
+      "mode": "MR",
+      "coords": [
+        101.706029,
+        3.140511
+      ]
+    },
+    {
+      "id": "MR5",
+      "name": "IMBI",
+      "mode": "MR",
+      "coords": [
+        101.70945,
+        3.14283
+      ]
+    },
+    {
+      "id": "MR6",
+      "name": "BUKIT BINTANG ",
+      "mode": "MR",
+      "coords": [
+        101.7115,
+        3.146022
+      ]
+    },
+    {
+      "id": "MR7",
+      "name": "RAJA CHULAN",
+      "mode": "MR",
+      "coords": [
+        101.710432,
+        3.150878
+      ]
+    },
+    {
+      "id": "MR8",
+      "name": "BUKIT NANAS",
+      "mode": "MR",
+      "coords": [
+        101.704809,
+        3.156214
+      ]
+    },
+    {
+      "id": "MR9",
+      "name": "MEDAN TUANKU",
+      "mode": "MR",
+      "coords": [
+        101.69888,
+        3.15935
+      ]
+    },
+    {
+      "id": "MR10",
+      "name": "CHOW KIT",
+      "mode": "MR",
+      "coords": [
+        101.698379,
+        3.167358
+      ]
+    },
+    {
+      "id": "MR11",
+      "name": "TITIWANGSA",
+      "mode": "MR",
+      "coords": [
+        101.696022,
+        3.173192
+      ]
+    },
+    {
+      "id": "BRT1",
+      "name": "SUNWAY-SETIA JAYA",
+      "mode": "BRT",
+      "coords": [
+        101.6123,
+        3.0828
+      ]
+    },
+    {
+      "id": "BRT2",
+      "name": "MENTARI",
+      "mode": "BRT",
+      "coords": [
+        101.6101,
+        3.0761
+      ]
+    },
+    {
+      "id": "BRT3",
+      "name": "SUNWAY LAGOON ",
+      "mode": "BRT",
+      "coords": [
+        101.6107,
+        3.0706
+      ]
+    },
+    {
+      "id": "BRT4",
+      "name": "SUNMED",
+      "mode": "BRT",
+      "coords": [
+        101.6087,
+        3.0656
+      ]
+    },
+    {
+      "id": "BRT5",
+      "name": "SunU-Monash",
+      "mode": "BRT",
+      "coords": [
+        101.6016,
+        3.0654
+      ]
+    },
+    {
+      "id": "BRT6",
+      "name": "SOUTH QUAY-USJ 1",
+      "mode": "BRT",
+      "coords": [
+        101.5969,
+        3.0617
+      ]
+    },
+    {
+      "id": "BRT7",
+      "name": "USJ7",
+      "mode": "BRT",
+      "coords": [
+        101.5919,
+        3.0553
+      ]
+    },
+    {
+      "id": "SA1",
+      "name": "BANDAR UTAMA",
+      "mode": "LRT",
+      "coords": [
+        101.618611,
+        3.144722
+      ]
+    },
+    {
+      "id": "SA2",
+      "name": "KAYU ARA",
+      "mode": "LRT",
+      "coords": [
+        101.616667,
+        3.134722
+      ]
+    },
+    {
+      "id": "SA3",
+      "name": "BANDAR UTAMA 11",
+      "mode": "LRT",
+      "coords": [
+        101.604444,
+        3.133333
+      ]
+    },
+    {
+      "id": "SA5",
+      "name": "DAMANSARA IDAMAN",
+      "mode": "LRT",
+      "coords": [
+        101.594167,
+        3.122778
+      ]
+    },
+    {
+      "id": "SA6",
+      "name": "SUBANG",
+      "mode": "LRT",
+      "coords": [
+        101.591111,
+        3.106111
+      ]
+    },
+    {
+      "id": "SA7",
+      "name": "GLENMARIE 2",
+      "mode": "LRT",
+      "coords": [
+        101.588611,
+        3.095278
+      ]
+    },
+    {
+      "id": "SA9",
+      "name": "KERJAYA",
+      "mode": "LRT",
+      "coords": [
+        101.561944,
+        3.082222
+      ]
+    },
+    {
+      "id": "SA10",
+      "name": "STADIUM SHAH ALAM",
+      "mode": "LRT",
+      "coords": [
+        101.548889,
+        3.079722
+      ]
+    },
+    {
+      "id": "SA12",
+      "name": "DATO' MENTERI - SA SENTRAL",
+      "mode": "LRT",
+      "coords": [
+        101.521111,
+        3.069722
+      ]
+    },
+    {
+      "id": "SA14",
+      "name": "UITM SHAH ALAM",
+      "mode": "LRT",
+      "coords": [
+        101.501111,
+        3.0625
+      ]
+    },
+    {
+      "id": "SA15",
+      "name": "SEKSYEN 7",
+      "mode": "LRT",
+      "coords": [
+        101.486667,
+        3.067222
+      ]
+    },
+    {
+      "id": "SA17",
+      "name": "BANDAR BARU KLANG",
+      "mode": "LRT",
+      "coords": [
+        101.465556,
+        3.0625
+      ]
+    },
+    {
+      "id": "SA18",
+      "name": "PASAR KLANG",
+      "mode": "LRT",
+      "coords": [
+        101.450833,
+        3.067778
+      ]
+    },
+    {
+      "id": "SA19",
+      "name": "JALAN MERU",
+      "mode": "LRT",
+      "coords": [
+        101.451944,
+        3.058889
+      ]
+    },
+    {
+      "id": "SA20",
+      "name": "JAMBATAN KOTA",
+      "mode": "LRT",
+      "coords": [
+        101.4475,
+        3.047222
+      ]
+    },
+    {
+      "id": "SA21",
+      "name": "TAMAN SELATAN",
+      "mode": "LRT",
+      "coords": [
+        101.442222,
+        3.026667
+      ]
+    },
+    {
+      "id": "SA22",
+      "name": "SERI ANDALAS",
+      "mode": "LRT",
+      "coords": [
+        101.440556,
+        3.015833
+      ]
+    },
+    {
+      "id": "SA23",
+      "name": "KLANG JAYA",
+      "mode": "LRT",
+      "coords": [
+        101.441667,
+        3.005278
+      ]
+    },
+    {
+      "id": "SA24",
+      "name": "BANDAR BUKIT TINGGI",
+      "mode": "LRT",
+      "coords": [
+        101.445833,
+        2.993056
+      ]
+    },
+    {
+      "id": "SA26",
+      "name": "JOHAN SETIA",
+      "mode": "LRT",
+      "coords": [
+        101.459167,
+        2.976111
+      ]
+    }
+  ]
+}

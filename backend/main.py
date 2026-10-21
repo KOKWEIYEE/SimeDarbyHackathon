@@ -16,6 +16,8 @@ CATALOG = json.loads((ROOT / 'src/features/ai/catalog.json').read_text(encoding=
 app = FastAPI(title='Abso KL Planning API')
 from backend.connectivity import router as connectivity_router
 app.include_router(connectivity_router)
+from backend.assistant import router as assistant_router
+app.include_router(assistant_router)
 
 
 class Scenario(BaseModel):
@@ -44,6 +46,8 @@ def calculate(scenario: Scenario, explanation: str, mode='ai'):
     carbon = round((1 - strategy['carbon'] / strategy['baseline']) * 100)
     return {
         'mode': mode,
+        'data_status': 'illustrative_legacy_catalog',
+        'production_ready': False,
         'response_text': explanation + f"\n\nIllustrative estimate: RM {cost:,.0f}; embodied carbon reduction {carbon}%. "
             + ('Within' if cost <= scenario.budget else 'Above') + ' budget. Carbon target '
             + ('met.' if carbon >= scenario.carbon_target else 'not met.')
@@ -67,7 +71,7 @@ def health():
     return {'status': 'ok', 'ai_configured': bool(os.getenv('GEMINI_API_KEY')), 'provider': 'gemini'}
 
 
-@app.post('/api/chat')
+@app.post('/api/chat', deprecated=True, summary='Legacy illustrative catalog planner; not measured project estimates')
 def chat(request: ChatRequest):
     if not request.message.strip():
         raise HTTPException(422, 'Enter a planning question.')

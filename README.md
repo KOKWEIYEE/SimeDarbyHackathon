@@ -53,3 +53,35 @@ Backend tests mock external services. A live request through the Vite proxy also
 
 Design reference: https://www.aino.world/
 Routing documentation: https://docs.mapbox.com/api/navigation/directions/
+
+## Low-carbon travel comparison (first version)
+
+Open the Sustainability tab. The current map origin is the start; choose "Pick destination on map" and click the map to set the green destination marker. Compare journeys requests separate Mapbox walking, cycling and driving routes, plus Google Routes transit when `VITE_GOOGLE_API_KEY` is configured and authorized for Routes API. No embedded fallback key is used by this module. API requests can count toward account usage. Changing either endpoint clears previous results.
+
+Enter petrol consumption in litres/100 km and whole-number occupancy. Estimated tailpipe kg CO2 per person = route km × consumption / 100 × (8.887 / 3.785411784) / occupancy. Source: US EPA, https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle (accessed 2026-10-21). This is a US gasoline combustion reference, not a Malaysian fleet factor; excludes upstream fuel, manufacturing, infrastructure and non-CO2 gases. Results are CO2, not full CO2e. Walking and non-electric cycling have zero vehicle tailpipe emissions within this narrow scope, not zero lifecycle emissions.
+
+Transit route distance/time is supported, but transit carbon remains unavailable until compatible mode-specific factors and transit-leg distances are integrated. Diesel/EV calculations and annual mode-shift savings are not implemented. No fuel-consumption default or carbon ranking is fabricated. No-route and service errors remain visible.
+
+Validation: `node --test tests/sustainability.test.mjs` and `npm.cmd run build`. A live test returned all three Mapbox route types; Google transit could not be tested because a configured Google key was absent. Browser UI interaction still requires manual verification.
+
+## Conversational map assistant
+
+The AI Chatbot now calls `POST /api/assistant` instead of matching keywords to canned replies. It sends the latest question, up to 12 previous user/assistant messages, the selected origin/destination, selected travel settings/categories and the existing analysis summary. Credentials remain on the Python backend (`GEMINI_API_KEY`, `GEMINI_MODEL`). Restart the backend after updating its code or credentials. The assistant does not run searches or manipulate map layers itself; missing analysis is explicitly represented as null, and service failures remain visible. Conversation is kept in browser memory only. Tests: `python -m unittest backend.test_assistant`.
+
+### Chat route actions and overload handling
+
+The assistant now returns a validated optional route action (origin name, destination name, walking/cycling/driving/transit). Explicit route requests run Photon place search and the configured routing provider, update map endpoints, and return actual route metrics. Mapbox routes are drawn in green with expandable provider directions; Google transit currently returns metrics only. Full matched place names are shown so users can check geocoding. If endpoints change during lookup, the pending action is discarded. These are route overviews, not live GPS navigation or accessibility verification.
+
+Temporary Gemini 500/502/503/504 responses receive one retry after a one-second delay (20-second per-attempt timeout). Authentication and quota errors are not automatically retried. Model replies use validated JSON; bold emphasis is rendered as React elements without raw HTML. Route tool results join conversation history for follow-up interpretation.
+
+## Completed operational carbon reference comparison
+
+This supersedes the earlier tailpipe-only panel description above. Sustainability now compares operational **kgCO2e/person/one-way trip** using a single documented UK DESNZ 2026 reference dataset. Users must enable the reference-scenario checkbox; factors are not presented as Malaysian measurements. Enter petrol consumption and car occupancy to enable the car comparison. Transit uses actual Google step distances and vehicle types; each segment's proxy factor and contribution are shown. Unknown modes or missing distances produce an unavailable total, never a partial total labelled complete. Walk/cycle zero represents vehicle operation only. No annual or realised mode-shift savings are claimed.
+
+A JSON comparison export contains origins, destinations, route snapshots, user inputs, carbon results, source cells, units and dataset provenance. The latest comparison also reaches the AI chatbot while endpoints match. This new report export is separate from the older map Export menu. See `data/emissions/README.md` for the dataset boundary and limitations. The older EPA helper remains for compatibility/tests but is not used by this panel.
+
+Validation: `node --test tests/carbon-comparison.test.mjs tests/sustainability.test.mjs tests/transit-itinerary.test.mjs`, plus production build. Live Mapbox driving and Google transit requests verified calculation on a KL Sentral/KLCC-area journey. Browser visual verification is still manual.
+
+## Malaysian grid scenario
+
+Sustainability now includes Electric car (Malaysia grid), powered by official Energy Commission 2024 provisional regional electricity factors. Enter charging electricity use in kWh/100 km and car occupancy; select the assumed charging region. This calculation works without enabling UK reference factors. To compare with petrol/transit, enable those references; differences are explicitly mixed-source scenarios. Full provenance, missing local transit data and Prasarana report review are documented in `data/emissions/README.md`. The reference-factor checkbox does not turn UK transit factors into Malaysian values.

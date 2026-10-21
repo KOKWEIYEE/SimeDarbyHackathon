@@ -1,0 +1,48 @@
+{
+  "publisher": "UK Department for Energy Security and Net Zero",
+  "year": 2026,
+  "region": "United Kingdom",
+  "source": "https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2026",
+  "workbook": "https://assets.publishing.service.gov.uk/media/6a29392bade52dc0882218a8/ghg-conversion-factors-2026-full-set.xlsx",
+  "retrieved": "2026-10-21",
+  "sha256": "b5c4f2f86cdc74707337b2fb013b44ded189a1b528f5e29ea99856ba65ae0205",
+  "license": "Open Government Licence v3.0",
+  "boundary": "Operational fuel combustion / traction electricity generation; excludes upstream fuel supply, electricity transmission/distribution losses, infrastructure and vehicle manufacture. Not full lifecycle.",
+  "factors": {
+    "petrol": {
+      "value": 2.35372,
+      "label": "100% mineral petrol",
+      "unit": "kgCO2e/litre",
+      "sheet": "Fuels",
+      "cell": "D100"
+    },
+    "bus": {
+      "value": 0.10151,
+      "label": "Average local bus",
+      "unit": "kgCO2e/passenger-km",
+      "sheet": "Business travel- land",
+      "cell": "D81"
+    },
+    "rail": {
+      "value": 0.03092,
+      "label": "National rail",
+      "unit": "kgCO2e/passenger-km",
+      "sheet": "Business travel- land",
+      "cell": "D87"
+    },
+    "lightRail": {
+      "value": 0.02121,
+      "label": "Light rail and tram",
+      "unit": "kgCO2e/passenger-km",
+      "sheet": "Business travel- land",
+      "cell": "D89"
+    },
+    "metro": {
+      "value": 0.01549,
+      "label": "London Underground",
+      "unit": "kgCO2e/passenger-km",
+      "sheet": "Business travel- land",
+      "cell": "D90"
+    }
+  }
+}
