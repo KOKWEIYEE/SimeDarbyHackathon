@@ -83,7 +83,7 @@ export default function App() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [densityScore, setDensityScore] = useState(null);
-  const [showLabels, setShowLabels] = useState(true);
+  const [showLabels, setShowLabels] = useState(false);
 
   // Site Comparison state
   const [compareSiteA, setCompareSiteA] = useState(PRESET_LOCATIONS[0]);
@@ -98,6 +98,7 @@ export default function App() {
   const [pinMode, setPinMode] = useState('none');
   const pinModeRef = useRef('none');
   pinModeRef.current = pinMode;
+  const activeTargetRef = useRef('A'); // Tracks active input target ('A' | 'B' | 'bookmark')
   const [favoritesTrigger, setFavoritesTrigger] = useState(0);
 
   // Search / geocode address for Location A
@@ -338,15 +339,16 @@ export default function App() {
       mapContainerRef,
       errorBoxRef: mapErrorRef,
       onModeChange: setMapMode,
-      getPinMode: () => pinModeRef.current,
+      getPinMode: () => (pinModeRef.current !== 'none' ? pinModeRef.current : activeTargetRef.current),
       onLocationPick: (customLoc, siteTarget = 'A') => {
-        if (siteTarget === 'bookmark' || pinModeRef.current === 'bookmark') {
+        const target = siteTarget || activeTargetRef.current;
+        if (target === 'bookmark' || pinModeRef.current === 'bookmark') {
           saveFavoriteLocation(customLoc);
           setPinMode('none');
           setFavoritesTrigger((prev) => prev + 1);
           return;
         }
-        if (siteTarget === 'B' || pinModeRef.current === 'B') {
+        if (target === 'B' || pinModeRef.current === 'B') {
           setCompareSiteB(customLoc);
           setLocationBInput(customLoc.address || customLoc.name);
           setPinMode('none');
@@ -899,7 +901,10 @@ export default function App() {
           <button
             type="button"
             className="pin-mode-cancel-btn"
-            onClick={() => setPinMode('none')}
+            onClick={() => {
+              setPinMode('none');
+              activeTargetRef.current = 'A';
+            }}
           >
             Cancel
           </button>
@@ -1120,7 +1125,7 @@ export default function App() {
 
               {/* Location Selection & Comparison */}
               <div className="studio-section">
-                <span className="section-label">Analysis Location</span>
+                <span className="section-label location-label">Analysis Location</span>
 
                 {/* Minimalist Pure Text Fields for Site A and Site B (Matching Image 1) */}
                 <div className="site-pure-inputs-container">
@@ -1133,6 +1138,14 @@ export default function App() {
                       placeholder="Find a place"
                       value={locationAInput}
                       onChange={(e) => setLocationAInput(e.target.value)}
+                      onClick={() => {
+                        activeTargetRef.current = 'A';
+                        setPinMode('A');
+                      }}
+                      onFocus={() => {
+                        activeTargetRef.current = 'A';
+                        setPinMode('A');
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -1148,10 +1161,10 @@ export default function App() {
                         type="button"
                         className={`site-pure-icon-btn ${pinMode === 'A' ? 'active' : ''}`}
                         onClick={() => {
-                          const next = pinMode === 'A' ? 'none' : 'A';
-                          setPinMode(next);
+                          activeTargetRef.current = 'A';
+                          setPinMode('A');
                         }}
-                        title={pinMode === 'A' ? 'Cancel pinning mode' : 'Pin location on map'}
+                        title={pinMode === 'A' ? 'Pinning Location A' : 'Pin location on map'}
                       >
                         {/* Folded Map Icon (Image 1 style) */}
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -1171,6 +1184,14 @@ export default function App() {
                         placeholder="Find a place"
                         value={locationBInput}
                         onChange={(e) => setLocationBInput(e.target.value)}
+                        onClick={() => {
+                          activeTargetRef.current = 'B';
+                          setPinMode('B');
+                        }}
+                        onFocus={() => {
+                          activeTargetRef.current = 'B';
+                          setPinMode('B');
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
@@ -1186,10 +1207,10 @@ export default function App() {
                           type="button"
                           className={`site-pure-icon-btn secondary ${pinMode === 'B' ? 'active' : ''}`}
                           onClick={() => {
-                            const next = pinMode === 'B' ? 'none' : 'B';
-                            setPinMode(next);
+                            activeTargetRef.current = 'B';
+                            setPinMode('B');
                           }}
-                          title={pinMode === 'B' ? 'Cancel pinning mode' : 'Pin comparison site on map'}
+                          title={pinMode === 'B' ? 'Pinning Location B' : 'Pin comparison site on map'}
                         >
                           {/* Folded Map Icon (Image 1 style) */}
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -1202,6 +1223,7 @@ export default function App() {
                           onClick={() => {
                             setIsComparing(false);
                             setPinMode('none');
+                            activeTargetRef.current = 'A';
                             setComparisonResult(null);
                             setIsSplitViewActive(false);
                             mapFeatureRef.current?.clearComparison();
@@ -1223,6 +1245,8 @@ export default function App() {
                       className="add-place-input-btn"
                       onClick={() => {
                         setIsComparing(true);
+                        activeTargetRef.current = 'B';
+                        setPinMode('B');
                         mapFeatureRef.current?.setComparisonMode(true, selectedLocation, compareSiteB);
                         if (!locationBInput) {
                           setLocationBInput(compareSiteB.address || compareSiteB.name);
@@ -1288,22 +1312,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Map Labels Display Toggle */}
-              <div className="studio-section">
-                <span className="section-label">Map Labels</span>
-                <button
-                  id="toggle-labels-btn"
-                  type="button"
-                  className={`labels-toggle-btn ${showLabels ? 'active' : ''}`}
-                  onClick={() => {
-                    const next = !showLabels;
-                    setShowLabels(next);
-                    mapFeatureRef.current?.toggleLabels(next);
-                  }}
-                >
-                  <span>{showLabels ? 'Place Names: Shown' : 'Place Names: Hidden (Dots Only)'}</span>
-                </button>
-              </div>
+
 
               {/* After Analysis: Interactive Amenities Filter Button under Map Labels */}
               {(analysisRun || comparisonResult) && (
@@ -1485,17 +1494,7 @@ export default function App() {
                     <span>{isSplitViewActive ? 'Exit Split Screen' : 'Split Screen Comparison (Left / Right)'}</span>
                   </button>
 
-                  {/* Pure text comparison addresses (NO card layout / NO blue left bar) */}
-                  <div className="metric-pure-text-box">
-                    <div className="metric-pure-text-row">
-                      <span className="pure-text-tag site-a">Site A:</span>
-                      <span className="pure-text-address">{selectedLocation.address || '19 Pudu Road, Bukit Bintang, 55100 Kuala Lumpur'}</span>
-                    </div>
-                    <div className="metric-pure-text-row">
-                      <span className="pure-text-tag site-b">Site B:</span>
-                      <span className="pure-text-address">{compareSiteB.address || 'Kuala Lumpur'}</span>
-                    </div>
-                  </div>
+
 
                   {/* 4. Winner Banner */}
                   <div className="winner-banner">
@@ -1585,11 +1584,7 @@ export default function App() {
                     </div>
                   ) : null}
 
-                  {/* Pure text address display (NO card layout / NO blue left bar) */}
-                  <div className="metric-pure-text-row single">
-                    <span className="pure-text-icon">📍</span>
-                    <span className="pure-text-address">{selectedLocation.address || '19 Pudu Road, Bukit Bintang, 55100 Kuala Lumpur'}</span>
-                  </div>
+
 
                   {/* Trustworthy Spatial Density & 15-Minute City Score Badge */}
                   {densityScore ? (
@@ -1823,7 +1818,6 @@ export default function App() {
       <div className="overlay">
         <div className="badge">{mapMode === '2d' ? 'PURE 2D MAP' : '3D PERSPECTIVE MAP'}</div>
         <h1>{selectedLocation.name}</h1>
-        <p>{mapMode === '2d' ? 'Pure 2D view, travel-time isochrones & categorized GIS' : '3D Buildings, terrain, and travel isochrones'}</p>
         <div className="overlay-tags">
           <span className="overlay-tag">
             {activeTravelModeObj.label} · {travelMinutes} min

@@ -597,12 +597,17 @@
 
 .section-label {
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #64748b;
   display: flex;
   justify-content: space-between;
+}
+
+.location-label,
+.section-label.location-label {
+  font-weight: 500 !important;
 }
 
 .mode-grid {
@@ -1434,7 +1439,7 @@
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 500;
   color: #ffffff;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(8px);

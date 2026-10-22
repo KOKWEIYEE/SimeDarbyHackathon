@@ -207,6 +207,9 @@ export function initMapFeature({
     preserveDrawingBuffer: true,
   });
 
+  // Default to hiding amenity labels automatically after analysis
+  container.classList.add('hide-amenity-labels');
+
   let mapMode = '2d';
   let activeMarkers = [];
   let originMarker = null;
@@ -273,7 +276,7 @@ export function initMapFeature({
 
     const popupHtml = `
       <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 4px;">
-        <div style="font-size: 10.5px; font-weight: 800; color: #ef4444; text-transform: uppercase; margin-bottom: 2px;">📍 Chosen Analysis Location</div>
+        <div style="font-size: 10.5px; font-weight: 500; color: #ef4444; text-transform: uppercase; margin-bottom: 2px;">📍 Chosen Analysis Location</div>
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
           <strong style="font-size: 14px; color: #0f172a;">${shortTitle}</strong>
           <button type="button" class="pin-expand-arrow origin-popup-addr-toggle" style="background: #e2e8f0; color: #1e293b; padding: 1px 6px; font-size: 10px; border-radius: 4px; border: none; cursor: pointer;">Address ▾</button>
@@ -351,7 +354,7 @@ export function initMapFeature({
 
     const popupHtml = `
       <div style="font-family: inherit; font-size: 13px; line-height: 1.4; padding: 4px;">
-        <div style="font-size: 11px; font-weight: 800; color: ${color}; text-transform: uppercase; margin-bottom: 2px;">Site ${labelLetter} Selected</div>
+        <div style="font-size: 11px; font-weight: 500; color: ${color}; text-transform: uppercase; margin-bottom: 2px;">Site ${labelLetter} Selected</div>
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
           <strong style="font-size: 14px; color: #0f172a;">${shortTitle}</strong>
           <button type="button" class="pin-expand-arrow site-popup-addr-toggle" style="background: #f1f5f9; color: #1e293b; padding: 1px 6px; font-size: 10px; border-radius: 4px; border: 1px solid #cbd5e1; cursor: pointer;">Address ▾</button>
@@ -1789,7 +1792,7 @@ export function initMapFeature({
       pinEl.innerHTML = `
         <div class="user-origin-pin-card">
           <div class="user-origin-pin-header">
-            <span style="background: #9333ea; color: #fff; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; margin-right: 4px;">SITE B</span>
+            <span style="background: #9333ea; color: #fff; font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; margin-right: 4px;">SITE B</span>
             <span class="user-origin-pin-title">${shortTitleB}</span>
             <button type="button" class="pin-expand-arrow split-b-expand-btn" title="Toggle address">▾</button>
           </div>
