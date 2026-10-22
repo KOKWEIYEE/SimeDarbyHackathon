@@ -396,6 +396,62 @@ export async function handlePlacesNearbyRoute(req, res) {
 }
 
 /**
+ * Route handler for POST /api/places/search (Google Places Text Search securely on backend)
+ */
+export async function handlePlacesSearchRoute(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    return sendJson(res, 405, { error: 'Method Not Allowed' });
+  }
+
+  loadEnvFiles();
+  const googleApiKey = (process.env.GOOGLE_API_KEY || '').trim();
+
+  try {
+    const body = await readJsonBody(req);
+    const { textQuery, maxResultCount = 5 } = body;
+
+    if (!textQuery) {
+      return sendJson(res, 400, { error: 'Missing textQuery in request body.' });
+    }
+
+    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': googleApiKey,
+        'X-Goog-FieldMask':
+          'places.id,places.displayName,places.location,places.formattedAddress,places.shortFormattedAddress,places.types',
+      },
+      body: JSON.stringify({
+        textQuery,
+        maxResultCount,
+        locationBias: {
+          circle: {
+            center: { latitude: 3.1390, longitude: 101.7069 },
+            radius: 50000,
+          },
+        },
+      }),
+    });
+
+    const data = await response.json();
+    return sendJson(res, response.status, data);
+  } catch (err) {
+    console.error('[Backend] Places Search Error:', err.message);
+    return sendJson(res, 500, { error: err.message });
+  }
+}
+
+/**
  * Route handler for POST /api/routes/transit (hides private Google API key on backend)
  */
 export async function handleRoutesComputeRoute(req, res) {
@@ -495,6 +551,9 @@ export function aiBackendPlugin() {
         if (url === '/api/places/nearby') {
           return handlePlacesNearbyRoute(req, res);
         }
+        if (url === '/api/places/search') {
+          return handlePlacesSearchRoute(req, res);
+        }
         if (url === '/api/routes/transit' || url === '/api/routes/compute') {
           return handleRoutesComputeRoute(req, res);
         }
@@ -522,6 +581,9 @@ export function startServer(port = process.env.PORT || 3001) {
     }
     if (url === '/api/places/nearby') {
       return handlePlacesNearbyRoute(req, res);
+    }
+    if (url === '/api/places/search') {
+      return handlePlacesSearchRoute(req, res);
     }
     if (url === '/api/routes/transit' || url === '/api/routes/compute') {
       return handleRoutesComputeRoute(req, res);

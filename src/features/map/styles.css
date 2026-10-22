@@ -402,6 +402,13 @@
   transform: translateY(-1px);
 }
 
+.view-toggle.active {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+  font-weight: 700;
+}
+
 .export-wrap {
   position: relative;
 }
@@ -726,27 +733,25 @@
 }
 
 .amenity-pure-label {
-  display: none !important;
+  display: flex;
   margin-left: 6px;
   flex-direction: column;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.95);
   padding: 3px 8px;
   border-radius: 7px;
   border: 1px solid rgba(15, 23, 42, 0.14);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
   pointer-events: auto;
   cursor: pointer;
   max-width: 175px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .amenity-pure-marker:hover .amenity-pure-label {
-  display: flex !important;
-  position: absolute;
-  left: 20px;
-  top: -8px;
   z-index: 1000;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22);
 }
 
 /* Hide Labels Mode */
@@ -801,10 +806,6 @@
   max-width: 170px;
 }
 
-/* Hide Labels Mode */
-.hide-amenity-labels .amenity-pure-label {
-  display: none !important;
-}
 
 /* Label Visibility Button */
 .labels-toggle-btn {

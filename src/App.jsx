@@ -92,7 +92,7 @@ export default function App() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [densityScore, setDensityScore] = useState(null);
-  const [showLabels, setShowLabels] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
 
   // Site Comparison state
   const [compareSiteA, setCompareSiteA] = useState(PRESET_LOCATIONS[0]);
@@ -2017,6 +2017,24 @@ export default function App() {
               </button>
             );
           })}
+        </div>
+
+        {/* Location Labels Toggle */}
+        <div className="view-toggle-wrap">
+          <button
+            id="labels-toggle"
+            className={`view-toggle ${showLabels ? 'active' : ''}`}
+            type="button"
+            aria-label="Toggle location labels on map"
+            onClick={() => {
+              const next = !showLabels;
+              setShowLabels(next);
+              mapFeatureRef.current?.toggleLabels(next);
+            }}
+            title={showLabels ? 'Hide amenity location labels' : 'Show amenity location labels'}
+          >
+            🏷️ {showLabels ? 'Labels: ON' : 'Labels: OFF'}
+          </button>
         </div>
 
         {/* 2D / 3D View Toggle */}

@@ -41,42 +41,104 @@ export function toEnglishPlaceName(name) {
     .replace(/\bStesen\b/gi, 'Station');
 }
 
+import { PLACES_DATA } from '../placesData.js';
+
 export async function searchPlace(query) {
   const q = String(query || '').trim();
   if (!q) return null;
 
-  const url = `${NOMINATIM_URL}?format=json&limit=1&accept-language=en&q=${encodeURIComponent(q)}`;
-  const res = await fetch(url, {
-    headers: {
-      'Accept': 'application/json',
-      'User-Agent': 'SimeDarbyGIS/1.0',
-    },
+  const lowerQ = q.toLowerCase();
+
+  // 1. Check curated Malaysian GIS places first for instant zero-latency match
+  const matchedCurated = PLACES_DATA.find((p) => {
+    const pName = (p.name || '').toLowerCase();
+    const pAddr = (p.address || '').toLowerCase();
+    return pName === lowerQ || pName.includes(lowerQ) || pAddr.includes(lowerQ);
   });
 
-  if (!res.ok) {
-    throw new Error(`Geocoding failed with status ${res.status}`);
+  if (matchedCurated) {
+    return {
+      name: matchedCurated.name,
+      shortName: matchedCurated.name.split(',')[0].trim(),
+      address: matchedCurated.address || 'Kuala Lumpur, Malaysia',
+      lat: matchedCurated.coords[1],
+      lon: matchedCurated.coords[0],
+      coords: matchedCurated.coords,
+      type: matchedCurated.categoryId || 'Location',
+    };
   }
 
-  const results = await res.json();
-  if (!results || results.length === 0) {
-    return null;
+  // 2. Try Google Places Text Search through secure backend proxy
+  try {
+    const res = await fetch('/api/places/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        textQuery: `${q} Kuala Lumpur Malaysia`,
+        maxResultCount: 1,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.places && data.places.length > 0) {
+        const place = data.places[0];
+        const lat = place.location?.latitude;
+        const lon = place.location?.longitude;
+        if (lat != null && lon != null) {
+          const rawName = place.displayName?.text || place.shortFormattedAddress || q;
+          const rawAddress = place.formattedAddress || place.shortFormattedAddress || `${rawName}, Kuala Lumpur`;
+          return {
+            name: toEnglishPlaceName(rawName),
+            shortName: toEnglishPlaceName(rawName.split(',')[0].trim()),
+            address: toEnglishAddress(rawAddress),
+            lat,
+            lon,
+            coords: [lon, lat],
+            type: place.types?.[0] || 'Location',
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Geocoding] Google Places search proxy warning:', err.message);
   }
 
-  const first = results[0];
-  const lat = parseFloat(first.lat);
-  const lon = parseFloat(first.lon);
+  // 3. OpenStreetMap Nominatim with country restriction to Malaysia
+  try {
+    const url = `${NOMINATIM_URL}?format=json&limit=1&accept-language=en&countrycodes=my&viewbox=100.0,7.5,119.5,0.8&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'SimeDarbyGIS/1.0',
+      },
+    });
 
-  const rawName = first.name || first.display_name.split(',')[0];
+    if (res.ok) {
+      const results = await res.json();
+      if (results && results.length > 0) {
+        const first = results[0];
+        const lat = parseFloat(first.lat);
+        const lon = parseFloat(first.lon);
+        const rawName = first.name || first.display_name.split(',')[0];
+        return {
+          name: toEnglishPlaceName(first.display_name),
+          shortName: toEnglishPlaceName(rawName),
+          address: toEnglishAddress(first.display_name),
+          lat,
+          lon,
+          coords: [lon, lat],
+          type: first.type || 'Location',
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Geocoding] Nominatim search warning:', err.message);
+  }
 
-  return {
-    name: toEnglishPlaceName(first.display_name),
-    shortName: toEnglishPlaceName(rawName),
-    address: toEnglishAddress(first.display_name),
-    lat,
-    lon,
-    coords: [lon, lat],
-    type: first.type || 'Location',
-  };
+  return null;
 }
 
 export async function reverseGeocode(lng, lat, mapboxApiKey = '') {

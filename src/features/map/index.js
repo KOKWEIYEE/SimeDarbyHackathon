@@ -209,8 +209,8 @@ export function initMapFeature({
     preserveDrawingBuffer: true,
   });
 
-  // Default to hiding amenity labels automatically after analysis
-  container.classList.add('hide-amenity-labels');
+  // Amenity labels are enabled by default for clear location visibility
+  container.classList.remove('hide-amenity-labels');
 
   let mapMode = '2d';
   let activeMarkers = [];
