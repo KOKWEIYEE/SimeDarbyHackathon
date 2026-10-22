@@ -1,3 +1,4 @@
+import railStations from './rail-stations.json' with { type: 'json' };
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 
 /**
@@ -48,6 +49,19 @@ export async function searchPlace(query) {
   if (!q) return null;
 
   const lowerQ = q.toLowerCase();
+  // Resolve rail station aliases before loose curated place/address matches.
+  const stationName = lowerQ.replace(/\b(mrt|lrt|monorail|station|stesen|kuala lumpur|malaysia)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+  const requestedMode = lowerQ.match(/\b(mrt|lrt|monorail)\b/)?.[1]?.toUpperCase();
+  if (/\b(mrt|lrt|monorail|station|stesen)\b/.test(lowerQ) || lowerQ === 'merdeka') {
+    const matches = railStations.stations.filter(station => station.name.trim().toLowerCase() === stationName && (!requestedMode || station.mode === requestedMode));
+    if (matches.length === 1) {
+      const station = matches[0];
+      const name = `${station.name.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase())} ${station.mode} Station`;
+      return {name, shortName:name, address:`${name}, Kuala Lumpur, Malaysia`, coords:station.coords,
+        lat:station.coords[1], lon:station.coords[0], type:'Transit station', source:railStations.source,
+        locationNote:'Station reference point; exact entrance is not verified.'};
+    }
+  }
 
   // 1. Check curated Malaysian GIS places first for instant zero-latency match
   const matchedCurated = PLACES_DATA.find((p) => {
