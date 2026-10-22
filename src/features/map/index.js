@@ -215,6 +215,7 @@ export function initMapFeature({
   let originMarker = null;
   let siteAMarker = null;
   let siteBMarker = null;
+  let destinationMarker = null;
   let isComparisonActive = false;
 
   // Analysis state: FALSE at default — NO amenities labeled until user clicks Run Analysis!
@@ -416,6 +417,46 @@ export function initMapFeature({
     if (isComparisonActive) {
       if (siteBMarker) siteBMarker.remove();
       siteBMarker = createSitePin(currentSiteB, 'B', '#9333ea');
+    }
+  }
+
+  function updateDestination(dest) {
+    if (!dest || !dest.coords) {
+      clearDestination();
+      return;
+    }
+    if (destinationMarker) {
+      destinationMarker.remove();
+      destinationMarker = null;
+    }
+    const shortTitle = dest.shortName || (dest.name ? dest.name.split(',')[0].trim() : 'Destination');
+    const el = document.createElement('div');
+    el.className = 'user-origin-pin destination-pin';
+    el.innerHTML = `
+      <div class="user-origin-pin-card" style="border-left: 3.5px solid #059669;">
+        <div class="user-origin-pin-header">
+          <span style="background: #059669; color: #fff; font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; margin-right: 4px;">DESTINATION</span>
+          <span class="user-origin-pin-title">${shortTitle}</span>
+        </div>
+      </div>
+      <div class="user-origin-pin-icon" style="background: #059669; border-color: #fff;">
+        <svg width="34" height="44" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 0C7.163 0 0 7.163 0 16c0 10.667 14 24.5 15.143 25.619a1.2 1.2 0 001.714 0C18 40.5 32 26.667 32 16 32 7.163 24.837 0 16 0z" fill="#059669"/>
+          <circle cx="16" cy="15" r="7" fill="#ffffff"/>
+          <text x="16" y="19" font-size="11" font-weight="900" fill="#059669" text-anchor="middle">🎯</text>
+        </svg>
+      </div>
+      <div class="user-origin-pin-shadow"></div>
+    `;
+    destinationMarker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+      .setLngLat(dest.coords)
+      .addTo(map);
+  }
+
+  function clearDestination() {
+    if (destinationMarker) {
+      destinationMarker.remove();
+      destinationMarker = null;
     }
   }
 
@@ -1902,6 +1943,8 @@ export function initMapFeature({
     updatePOIs,
     updateOrigin,
     updateSiteB,
+    updateDestination,
+    clearDestination,
     toggleLabels,
     getMapCanvas: () => map.getCanvas(),
     getOrigin: () => currentOrigin,

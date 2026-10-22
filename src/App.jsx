@@ -11,8 +11,16 @@ import {
 import { calculateAmenitiesDensityScore } from './features/density/index.js';
 import { generatePdfAnalysisReport } from './features/export/index.js';
 import { calculateSiteComparison } from './features/comparison/index.js';
-import { callAiChatApi, isAiApiConfigured, getAiApiConfig } from './features/ai/index.js';
+import {
+  callAiChatApi,
+  isAiApiConfigured,
+  getAiApiConfig,
+  validateUserInput,
+  detectAccessibilityIntent,
+} from './features/ai/index.js';
 import { SettingsSection, saveFavoriteLocation } from './features/settings/index.js';
+import { SustainabilityPanel } from './features/sustainability/index.js';
+import PlaceSearch from './features/map/PlaceSearch.jsx';
 
 const TRAVEL_MODES = [
   { id: 'walking', label: 'Walk', speed: '4.5 km/h', desc: 'Pedestrian paths & sidewalks' },
@@ -98,8 +106,47 @@ export default function App() {
   const [pinMode, setPinMode] = useState('none');
   const pinModeRef = useRef('none');
   pinModeRef.current = pinMode;
-  const activeTargetRef = useRef('A'); // Tracks active input target ('A' | 'B' | 'bookmark')
+  const activeTargetRef = useRef('A'); // Tracks active input target ('A' | 'B' | 'bookmark' | 'destination')
   const [favoritesTrigger, setFavoritesTrigger] = useState(0);
+
+  // Sustainability Destination & Comparison state
+  const [destination, setDestination] = useState(null);
+  const [pickingDestination, setPickingDestination] = useState(false);
+  const pickingDestinationRef = useRef(false);
+  pickingDestinationRef.current = pickingDestination;
+  const [carbonComparison, setCarbonComparison] = useState(null);
+  // Ref to track parameters of active analysis to prevent accidental wipeout by effects
+  const currentAnalysisParamsRef = useRef(null);
+
+  const toggleDestinationPick = () => {
+    const next = !pickingDestination;
+    setPickingDestination(next);
+    pickingDestinationRef.current = next;
+    setPinMode(next ? 'destination' : 'none');
+  };
+
+  const selectSustainabilityPlace = (place, target = 'destination') => {
+    if (target === 'destination') {
+      setDestination(place);
+      mapFeatureRef.current?.updateDestination(place);
+    } else {
+      setSelectedLocation(place);
+      setLocationAInput(place.name);
+      setAnalysisRun(false);
+      setAnalysisResult(null);
+      setDensityScore(null);
+      setComparisonResult(null);
+      setIsSplitViewActive(false);
+      mapFeatureRef.current?.clearIsochrone();
+      mapFeatureRef.current?.clearComparison();
+      mapFeatureRef.current?.updateOrigin(place);
+      currentOriginRef.current = place;
+    }
+    pickingDestinationRef.current = false;
+    setPickingDestination(false);
+    setPinMode('none');
+    mapFeatureRef.current?.map?.flyTo({ center: place.coords, zoom: 13, duration: 800 });
+  };
 
   // Search / geocode address for Location A
   const handleSearchLocationA = async (query = locationAInput) => {
@@ -339,9 +386,17 @@ export default function App() {
       mapContainerRef,
       errorBoxRef: mapErrorRef,
       onModeChange: setMapMode,
-      getPinMode: () => (pinModeRef.current !== 'none' ? pinModeRef.current : activeTargetRef.current),
+      getPinMode: () => (pickingDestinationRef.current ? 'destination' : (pinModeRef.current !== 'none' ? pinModeRef.current : activeTargetRef.current)),
       onLocationPick: (customLoc, siteTarget = 'A') => {
         const target = siteTarget || activeTargetRef.current;
+        if (pickingDestinationRef.current || target === 'destination' || pinModeRef.current === 'destination') {
+          setDestination(customLoc);
+          setPickingDestination(false);
+          pickingDestinationRef.current = false;
+          setPinMode('none');
+          feature.updateDestination(customLoc);
+          return;
+        }
         if (target === 'bookmark' || pinModeRef.current === 'bookmark') {
           saveFavoriteLocation(customLoc);
           setPinMode('none');
@@ -383,12 +438,22 @@ export default function App() {
     };
   }, []);
 
-  // When mode/minutes change while analysis is active, reset so user must re-run
+  // When mode/minutes change manually while analysis is active, reset so user must re-run
   useEffect(() => {
+    // If the state change matches the parameters that were just executed, preserve the analysis!
+    if (
+      currentAnalysisParamsRef.current &&
+      currentAnalysisParamsRef.current.mode === travelMode &&
+      currentAnalysisParamsRef.current.minutes === travelMinutes
+    ) {
+      return;
+    }
+
     if (analysisRun) {
       setAnalysisRun(false);
       setAnalysisResult(null);
       setDensityScore(null);
+      currentAnalysisParamsRef.current = null;
       mapFeatureRef.current?.clearIsochrone();
     }
   }, [travelMode, travelMinutes]);
@@ -625,7 +690,66 @@ export default function App() {
     }
   };
 
-  // AI chat send handler with AI API integration & placeholder fallback
+  // Dedicated helper to execute isochrone accessibility analysis on the live map
+  const executeAnalysis = async ({
+    origin = selectedLocation,
+    mode = travelMode,
+    minutes = travelMinutes,
+    categories = selectedCategories,
+  } = {}) => {
+    if (!mapFeatureRef.current) return null;
+
+    setAnalysisLoading(true);
+    setErrorMessage('');
+
+    try {
+      const res = await mapFeatureRef.current.runAnalysis({
+        origin,
+        mode,
+        minutes,
+        selectedCategoryIds: categories,
+      });
+
+      const density = calculateAmenitiesDensityScore({
+        isochroneGeometry: res.isochroneGeometry,
+        places: res.places || [],
+        travelMinutes: minutes,
+        mode,
+      });
+
+      // Track executed parameters so useEffect does not clear them
+      currentAnalysisParamsRef.current = {
+        originId: origin.id || origin.name,
+        mode,
+        minutes,
+      };
+
+      setTravelMode(mode);
+      setTravelMinutes(minutes);
+      setSelectedLocation(origin);
+      setLocationAInput(origin.name);
+      setAnalysisRun(true);
+      setAnalysisResult(res);
+      setDensityScore(density);
+
+      return {
+        success: true,
+        result: res,
+        densityScore: density,
+        origin,
+        mode,
+        minutes,
+      };
+    } catch (err) {
+      console.error('Isochrone analysis error:', err);
+      setErrorMessage(err.message || 'Analysis failed. Please check network and API keys.');
+      return { success: false, error: err.message };
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  // AI chat send handler with guardrails, SQLi defense, prompt injection defense, and automated map accessibility execution
   const handleSend = async (textToSend = null) => {
     const nextMessage = (textToSend ?? draft).trim();
     if (!nextMessage || isAiThinking) return;
@@ -640,20 +764,107 @@ export default function App() {
     setDraft('');
     setIsAiThinking(true);
 
+    // 1. Pre-execution Security & Relevance Validation (SQLi, Prompt Injection, Domain Relevance)
+    const validation = validateUserInput(nextMessage);
+    if (!validation.isValid) {
+      const guardrailReply = {
+        id: Date.now() + 1,
+        sender: 'bot',
+        text: validation.message,
+        source: 'guardrail_block',
+        model: 'security-guardrail',
+      };
+      setMessages((previousMessages) => [...previousMessages, guardrailReply]);
+      setIsAiThinking(false);
+      return;
+    }
+
     try {
+      // 2. Check for Accessibility Analysis Intent
+      const accessibilityIntent = detectAccessibilityIntent(nextMessage, {
+        travelMode,
+        travelMinutes,
+        locationName: selectedLocation.name,
+      });
+
+      let effectiveOrigin = selectedLocation;
+      let effectiveMode = travelMode;
+      let effectiveMinutes = travelMinutes;
+      let executedResult = null;
+      let isActionExecuted = false;
+
+      if (accessibilityIntent.isAccessibilityIntent) {
+        // If sidebar is in full-size expanded mode, restore normal mode so map is visible!
+        if (isFullSize) {
+          setIsFullSize(false);
+        }
+
+        // Resolve target location if specified
+        if (accessibilityIntent.params?.matchedPreset) {
+          effectiveOrigin = accessibilityIntent.params.matchedPreset;
+        } else if (accessibilityIntent.params?.locationQuery) {
+          try {
+            const geocoded = await searchPlace(accessibilityIntent.params.locationQuery);
+            if (geocoded && geocoded.coords) {
+              effectiveOrigin = {
+                id: `ai-loc-${Date.now()}`,
+                name: geocoded.shortName || geocoded.name,
+                address: geocoded.address || geocoded.name,
+                coords: geocoded.coords,
+                type: geocoded.type || 'Custom Place',
+              };
+            }
+          } catch (geoErr) {
+            console.warn('AI location geocoding fallback:', geoErr);
+          }
+        }
+
+        if (accessibilityIntent.params?.mode) {
+          effectiveMode = accessibilityIntent.params.mode;
+        }
+        if (accessibilityIntent.params?.minutes) {
+          effectiveMinutes = accessibilityIntent.params.minutes;
+        }
+
+        // Update origin marker and fly to coordinates if location changed
+        if (effectiveOrigin.id !== selectedLocation.id || effectiveOrigin.name !== selectedLocation.name) {
+          setSelectedLocation(effectiveOrigin);
+          setLocationAInput(effectiveOrigin.name);
+          mapFeatureRef.current?.updateOrigin(effectiveOrigin);
+          mapFeatureRef.current?.map?.flyTo({ center: effectiveOrigin.coords, zoom: 13, duration: 800 });
+          currentOriginRef.current = effectiveOrigin;
+        }
+
+        // Execute map analysis directly on the map
+        executedResult = await executeAnalysis({
+          origin: effectiveOrigin,
+          mode: effectiveMode,
+          minutes: effectiveMinutes,
+          categories: selectedCategories,
+        });
+
+        isActionExecuted = Boolean(executedResult?.success);
+      }
+
+      // 3. Call AI Chat Service with updated live spatial context
       const response = await callAiChatApi({
         prompt: nextMessage,
         messages: [...messages, userMessage],
         context: {
-          locationName: selectedLocation.name,
-          locationAddress: selectedLocation.address,
-          travelMode,
-          travelMinutes,
-          totalPlaces: analysisResult?.total || PLACES_DATA.filter((p) => selectedCategories.includes(p.categoryId)).length,
-          densityScore,
+          locationName: effectiveOrigin.name,
+          locationAddress: effectiveOrigin.address,
+          destination,
+          sustainability: carbonComparison,
+          travelMode: effectiveMode,
+          travelMinutes: effectiveMinutes,
+          totalPlaces: executedResult?.result?.total ?? (analysisResult?.total || PLACES_DATA.filter((p) => selectedCategories.includes(p.categoryId)).length),
+          densityScore: executedResult?.densityScore ?? densityScore,
+          analysisResult: executedResult?.result ?? analysisResult,
           selectedCategories,
           isComparison: isComparing,
           comparisonResult,
+          isAnalysisAction: isActionExecuted,
+          isLocationAction: isActionExecuted,
         },
       });
 
@@ -673,7 +884,7 @@ export default function App() {
         {
           id: Date.now() + 1,
           sender: 'bot',
-          text: 'Unable to reach the AI chat service. Please check your network and API settings.',
+          text: 'Unable to complete the AI analysis. Please check your network and API settings.',
         },
       ]);
     } finally {
@@ -689,35 +900,12 @@ export default function App() {
   };
 
   const handleRunAnalysis = async () => {
-    if (!mapFeatureRef.current) return;
-
-    setAnalysisLoading(true);
-    setErrorMessage('');
-
-    try {
-      const res = await mapFeatureRef.current.runAnalysis({
-        origin: selectedLocation,
-        mode: travelMode,
-        minutes: travelMinutes,
-        selectedCategoryIds: selectedCategories,
-      });
-
-      const density = calculateAmenitiesDensityScore({
-        isochroneGeometry: res.isochroneGeometry,
-        places: res.places || [],
-        travelMinutes,
-        mode: travelMode,
-      });
-
-      setAnalysisRun(true);
-      setAnalysisResult(res);
-      setDensityScore(density);
-    } catch (err) {
-      console.error('Isochrone analysis error:', err);
-      setErrorMessage(err.message || 'Analysis failed. Please check network and API keys.');
-    } finally {
-      setAnalysisLoading(false);
-    }
+    await executeAnalysis({
+      origin: selectedLocation,
+      mode: travelMode,
+      minutes: travelMinutes,
+      categories: selectedCategories,
+    });
   };
 
   const handleRunComparison = async () => {
@@ -888,11 +1076,13 @@ export default function App() {
       ) : null}
 
       {/* Floating Pin Mode Banner */}
-      {pinMode !== 'none' ? (
+      {pinMode !== 'none' || pickingDestination ? (
         <div className="pin-mode-banner">
           <span>
             📍 Click anywhere on the map to pin{' '}
-            {pinMode === 'A'
+            {pinMode === 'destination' || pickingDestination
+              ? 'Destination for Sustainability Journey'
+              : pinMode === 'A'
               ? 'Location A (Primary Site)'
               : pinMode === 'B'
               ? 'Location B (Comparison Site)'
@@ -903,6 +1093,8 @@ export default function App() {
             className="pin-mode-cancel-btn"
             onClick={() => {
               setPinMode('none');
+              setPickingDestination(false);
+              pickingDestinationRef.current = false;
               activeTargetRef.current = 'A';
             }}
           >
@@ -978,13 +1170,18 @@ export default function App() {
           </div>
         </div>
 
-        {/* Navigation Bar Switcher: AI Chatbot, Time Travel, Settings */}
+        {/* Navigation Bar Switcher: AI Chatbot, Time Travel, Sustainability, Setting */}
         <nav className="left-nav-tabs" aria-label="Sidebar Navigation">
           <button
             id="tab-btn-chat"
             type="button"
             className={activeNavTab === 'chat' ? 'nav-tab-btn active' : 'nav-tab-btn'}
-            onClick={() => setActiveNavTab('chat')}
+            onClick={() => {
+              setActiveNavTab('chat');
+              setPickingDestination(false);
+              pickingDestinationRef.current = false;
+              if (pinMode === 'destination') setPinMode('none');
+            }}
           >
             AI Chatbot
           </button>
@@ -993,18 +1190,37 @@ export default function App() {
             id="tab-btn-travel"
             type="button"
             className={activeNavTab === 'travel' ? 'nav-tab-btn active' : 'nav-tab-btn'}
-            onClick={() => setActiveNavTab('travel')}
+            onClick={() => {
+              setActiveNavTab('travel');
+              setPickingDestination(false);
+              pickingDestinationRef.current = false;
+              if (pinMode === 'destination') setPinMode('none');
+            }}
           >
             Time Travel
+          </button>
+
+          <button
+            id="tab-btn-sustainability"
+            type="button"
+            className={activeNavTab === 'sustainability' ? 'nav-tab-btn active' : 'nav-tab-btn'}
+            onClick={() => setActiveNavTab('sustainability')}
+          >
+            Sustainability
           </button>
 
           <button
             id="tab-btn-settings"
             type="button"
             className={activeNavTab === 'settings' ? 'nav-tab-btn active' : 'nav-tab-btn'}
-            onClick={() => setActiveNavTab('settings')}
+            onClick={() => {
+              setActiveNavTab('settings');
+              setPickingDestination(false);
+              pickingDestinationRef.current = false;
+              if (pinMode === 'destination') setPinMode('none');
+            }}
           >
-            Settings
+            Setting
           </button>
         </nav>
 
@@ -1096,7 +1312,7 @@ export default function App() {
               </div>
             </div>
           ) : activeNavTab === 'settings' ? (
-            /* TAB 3: SETTINGS SECTION */
+            /* TAB 4: SETTINGS SECTION */
             <SettingsSection
               currentLocation={selectedLocation}
               onSelectLocation={(fav) => {
@@ -1119,6 +1335,18 @@ export default function App() {
               }
               favoritesTrigger={favoritesTrigger}
             />
+          ) : activeNavTab === 'sustainability' ? (
+            /* TAB 3: SUSTAINABILITY SECTION */
+            <div className="sustainability-tab-content">
+              <PlaceSearch onSelect={selectSustainabilityPlace} />
+              <SustainabilityPanel
+                origin={selectedLocation}
+                destination={destination}
+                picking={pickingDestination}
+                onPick={toggleDestinationPick}
+                onComparison={setCarbonComparison}
+              />
+            </div>
           ) : (
             /* TAB 2: TIME TRAVEL STUDIO */
             <div className="travel-studio">

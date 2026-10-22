@@ -6,6 +6,11 @@ export {
   getAiApiConfig,
 } from './aiService.js';
 
+export {
+  validateUserInput,
+  detectAccessibilityIntent,
+} from './securityGuardrails.js';
+
 export function initAiFeature({ app, aiPanel }) {
   let compactPanelMode = 'b';
   let isFullSize = false;
