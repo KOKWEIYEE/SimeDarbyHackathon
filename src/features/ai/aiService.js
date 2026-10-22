@@ -1,33 +1,66 @@
 /**
  * AI Chatbot API Service
- * Connects the Sime Darby GIS Analyst chatbot with LLM APIs (OpenAI, Gemini, Anthropic, or custom endpoints).
- * When VITE_AI_API_KEY is configured in .env, calls the live API endpoint.
- * When not configured, provides a domain-specific GIS analytical fallback with clear placeholder status.
+ * Connects the Sime Darby GIS Analyst chatbot with LLM APIs (Google Gemini, OpenAI, or custom endpoints).
+ * Supports automatic provider detection for Google Gemini (AQ.* and AIzaSy* keys) and OpenAI (sk-* keys).
+ * When live API is unavailable or unconfigured, provides a domain-specific GIS analytical fallback.
  */
 
 export const AI_CONFIG = {
-  apiKey: (import.meta.env.VITE_AI_API_KEY || '').trim(),
-  endpoint: (import.meta.env.VITE_AI_API_ENDPOINT || 'https://api.openai.com/v1/chat/completions').trim(),
-  model: (import.meta.env.VITE_AI_MODEL || 'gpt-4o-mini').trim(),
-  provider: (import.meta.env.VITE_AI_PROVIDER || 'openai').trim().toLowerCase(),
+  apiKey: (
+    import.meta.env.VITE_AI_API_KEY ||
+    import.meta.env.VITE_GEMINI_API_KEY ||
+    import.meta.env.GEMINI_API_KEY ||
+    ''
+  ).trim(),
+  endpoint: (import.meta.env.VITE_AI_API_ENDPOINT || '').trim(),
+  model: (import.meta.env.VITE_AI_MODEL || '').trim(),
+  provider: (import.meta.env.VITE_AI_PROVIDER || '').trim().toLowerCase(),
 };
+
+/**
+ * Detects whether the active key or configuration maps to Google Gemini or OpenAI.
+ */
+export function getResolvedAiProvider() {
+  if (AI_CONFIG.provider) return AI_CONFIG.provider;
+  if (
+    AI_CONFIG.apiKey.startsWith('AQ.') ||
+    AI_CONFIG.apiKey.startsWith('AIzaSy') ||
+    AI_CONFIG.endpoint.includes('googleapis.com')
+  ) {
+    return 'gemini';
+  }
+  if (AI_CONFIG.apiKey.startsWith('sk-') || AI_CONFIG.endpoint.includes('api.openai.com')) {
+    return 'openai';
+  }
+  // Default to gemini if key is present
+  return AI_CONFIG.apiKey ? 'gemini' : 'openai';
+}
 
 /**
  * Checks whether a live AI API key is configured.
  */
 export function isAiApiConfigured() {
-  return Boolean(AI_CONFIG.apiKey && AI_CONFIG.apiKey.length > 5 && !AI_CONFIG.apiKey.includes('your_ai_api_key'));
+  return Boolean(
+    AI_CONFIG.apiKey &&
+    AI_CONFIG.apiKey.length > 5 &&
+    !AI_CONFIG.apiKey.includes('your_ai_api_key')
+  );
 }
 
 /**
  * Returns the active AI service configuration for UI or debugging.
  */
 export function getAiApiConfig() {
+  const provider = getResolvedAiProvider();
   return {
     isConfigured: isAiApiConfigured(),
-    endpoint: AI_CONFIG.endpoint,
-    model: AI_CONFIG.model,
-    provider: AI_CONFIG.provider,
+    endpoint:
+      AI_CONFIG.endpoint ||
+      (provider === 'gemini'
+        ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
+        : 'https://api.openai.com/v1/chat/completions'),
+    model: AI_CONFIG.model || (provider === 'gemini' ? 'gemini-3.8-flash' : 'gpt-4o-mini'),
+    provider,
   };
 }
 
@@ -49,12 +82,21 @@ function buildSpatialContextString(context = {}) {
 
   const modeLabel = travelMode === 'walking' ? 'Pedestrian Walk' : travelMode === 'cycling' ? 'Bicycle Ride' : 'Vehicle Drive';
 
-  let lines = [
+  let lines = [];
+
+  if (context.isLocationAction) {
+    lines.push(
+      `[MAP ACTION EXECUTED]: The location "${locationName}" has been pinned on the map.`,
+      `[ISOCHRONE & AMENITIES PLOTTED]: A ${travelMinutes}-minute ${modeLabel} isochrone catchment is drawn on the map with ${totalPlaces} reachable amenities.`
+    );
+  }
+
+  lines.push(
     `Current Analysis Location: ${locationName}`,
     `Location Address: ${locationAddress}`,
     `Active Travel Profile: ${travelMinutes}-minute ${modeLabel}`,
     `Reachable Filtered Places: ${totalPlaces}`,
-  ];
+  );
 
   if (densityScore) {
     lines.push(
@@ -82,21 +124,28 @@ function buildSpatialContextString(context = {}) {
 }
 
 /**
- * Local domain-aware GIS analytical fallback when API key is not configured.
+ * Local domain-aware GIS analytical fallback when API key is not configured or network fails.
  */
 function generateLocalGisResponse(prompt, context = {}) {
   const lower = prompt.toLowerCase();
   const {
     locationName = 'Sime Darby Centre',
+    locationAddress = '19 Pudu Road, Bukit Bintang, Kuala Lumpur',
     travelMode = 'walking',
     travelMinutes = 20,
     totalPlaces = 0,
     densityScore = null,
     isComparison = false,
     comparisonResult = null,
+    isLocationAction = false,
   } = context;
 
   const modeLabel = travelMode === 'walking' ? 'walk' : travelMode === 'cycling' ? 'bike ride' : 'drive';
+
+  if (isLocationAction || lower.includes('choose') || lower.includes('pin') || lower.includes('select') || lower.includes('switch to')) {
+    const scoreText = densityScore ? ` with a Density Score of ${densityScore.score}/100 (${densityScore.rating || 'Active'}).` : '.';
+    return `📍 I have pinned **${locationName}** on the map, mapped its ${travelMinutes}-minute ${modeLabel} isochrone catchment, and plotted ${totalPlaces} reachable amenities.\n\nSpatial & Amenity Analysis for ${locationName}:\n• Reachable Catchment: Within a ${travelMinutes}-minute ${modeLabel}, residents and visitors have access to ${totalPlaces} amenities${scoreText}\n• Connectivity & Transit: Positioned along prime urban corridors with direct pedestrian linkages and multimodal transit access.\n• Urban Vitality: Features a well-distributed mix of retail, daily services, and commercial conveniences suitable for 15-minute city accessibility.`;
+  }
 
   if (isComparison && comparisonResult) {
     const leader = comparisonResult.winner === 'siteB' ? comparisonResult.siteB.name : comparisonResult.siteA.name;
@@ -105,7 +154,7 @@ function generateLocalGisResponse(prompt, context = {}) {
   }
 
   if (lower.includes('walk') || lower.includes('travel') || lower.includes('reach') || lower.includes('minute') || lower.includes('isochrone')) {
-    const scoreText = densityScore ? ` achieving a Trustworthy Density Score of ${densityScore.score}/100 (${densityScore.rating}).` : '.';
+    const scoreText = densityScore ? ` achieving a Density Score of ${densityScore.score}/100 (${densityScore.rating}).` : '.';
     return `Within a ${travelMinutes}-minute ${modeLabel} from ${locationName}, our spatial isochrone catchment encompasses ${totalPlaces} reachable amenities${scoreText} The highest concentration is clustered around transit-oriented nodes and mixed-use commercial corridors.`;
   }
 
@@ -128,7 +177,134 @@ function generateLocalGisResponse(prompt, context = {}) {
     return `You can generate executive reports directly from the interface: click 'Export PDF Report' in the Time Travel panel or use the Export button at top right to download high-resolution PNG maps, executive PDF analysis sheets, or filtered CSV datasets.`;
   }
 
-  return `I am Abso, your AI GIS Analyst for Sime Darby Property. Currently examining ${locationName} under a ${travelMinutes}-minute ${modeLabel} catchment with ${totalPlaces} reachable amenities. You can ask me about accessibility scores, transit corridors, retail reach, or compare multiple sites.`;
+  return `I am Abso, your AI GIS Analyst for Sime Darby Property. Currently examining ${locationName} under a ${travelMinutes}-minute ${modeLabel} catchment with ${totalPlaces} reachable amenities. You can ask me to choose or pin a new location on the map, analyze accessibility scores, evaluate transit corridors, or compare multiple sites.`;
+}
+
+/**
+ * Calls Google Gemini REST API with automated multi-model fallback.
+ */
+async function callGeminiApi({ prompt, messages = [], systemInstruction }) {
+  const userSpecifiedModel = AI_CONFIG.model;
+  // Ordered candidate models with current active versions for Google AI Studio
+  const candidateModels = [
+    ...(userSpecifiedModel ? [userSpecifiedModel] : []),
+    'gemini-3.8-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
+  ];
+
+  // De-duplicate model names while preserving order
+  const uniqueModels = [...new Set(candidateModels)];
+
+  const historyFormatted = messages.slice(-8).map((m) => ({
+    role: m.sender === 'user' ? 'user' : 'model',
+    parts: [{ text: m.text }],
+  }));
+
+  const payload = {
+    systemInstruction: {
+      parts: [{ text: systemInstruction }],
+    },
+    contents: [
+      ...historyFormatted,
+      {
+        role: 'user',
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 800,
+    },
+  };
+
+  for (const model of uniqueModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${AI_CONFIG.apiKey}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.warn(`Gemini model ${model} responded with status:`, res.status, errorText);
+        // Continue to fallback model if 404 or 503 high demand
+        continue;
+      }
+
+      const data = await res.json();
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+      if (reply) {
+        return {
+          text: reply,
+          source: 'live_api',
+          model,
+        };
+      }
+    } catch (err) {
+      console.warn(`Gemini API call to ${model} failed:`, err);
+    }
+  }
+
+  throw new Error('All Gemini models exhausted without a valid response.');
+}
+
+/**
+ * Calls OpenAI chat completion endpoint.
+ */
+async function callOpenAiApi({ prompt, messages = [], systemInstruction }) {
+  const historyFormatted = messages.slice(-8).map((m) => ({
+    role: m.sender === 'user' ? 'user' : 'assistant',
+    content: m.text,
+  }));
+
+  const endpoint = AI_CONFIG.endpoint || 'https://api.openai.com/v1/chat/completions';
+  const model = AI_CONFIG.model || 'gpt-4o-mini';
+
+  const payload = {
+    model,
+    messages: [
+      { role: 'system', content: systemInstruction },
+      ...historyFormatted,
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 600,
+  };
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.warn('OpenAI API responded with error status:', res.status, errorText);
+    throw new Error(`OpenAI API error: HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const reply = data?.choices?.[0]?.message?.content?.trim();
+
+  if (!reply) {
+    throw new Error('Empty response from OpenAI');
+  }
+
+  return {
+    text: reply,
+    source: 'live_api',
+    model,
+  };
 }
 
 /**
@@ -159,6 +335,7 @@ Current Spatial Analytics Context:
 ${spatialContext}
 
 Guidelines:
+- When a user asks to choose, pin, or analyze a location: confirm you have pinned the location on the map, plotted the travel-time isochrone and reachable amenities, and provide a comprehensive GIS spatial analysis in text covering accessibility, density metrics, transit connectivity, and urban viability.
 - Provide concise, professional, and data-informed answers.
 - Use English names for all addresses and locations (e.g., Road, Avenue, Central Station, National Museum).
 - Do not use emojis in your responses except for the location pin 📍 where designating a coordinate or address.
@@ -167,53 +344,25 @@ Guidelines:
   // 1. If API is configured, call the live endpoint
   if (isAiApiConfigured()) {
     try {
-      const historyFormatted = messages.slice(-8).map((m) => ({
-        role: m.sender === 'user' ? 'user' : 'assistant',
-        content: m.text,
-      }));
-
-      const payload = {
-        model: AI_CONFIG.model,
-        messages: [
-          { role: 'system', content: systemInstruction },
-          ...historyFormatted,
-          { role: 'user', content: trimmedPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 600,
-      };
-
-      const res = await fetch(AI_CONFIG.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
-        },
-        body: JSON.stringify(payload),
+      const provider = getResolvedAiProvider();
+      if (provider === 'gemini') {
+        return await callGeminiApi({
+          prompt: trimmedPrompt,
+          messages,
+          systemInstruction,
+        });
+      }
+      return await callOpenAiApi({
+        prompt: trimmedPrompt,
+        messages,
+        systemInstruction,
       });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.warn('AI API responded with error status:', res.status, errorText);
-        throw new Error(`AI API error: HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      const reply = data?.choices?.[0]?.message?.content?.trim();
-
-      if (reply) {
-        return {
-          text: reply,
-          source: 'live_api',
-          model: AI_CONFIG.model,
-        };
-      }
     } catch (err) {
       console.warn('Live AI API call failed, falling back to local GIS analyst:', err);
     }
   }
 
-  // 2. Fallback Placeholder: High quality simulated GIS response with placeholder notice
+  // 2. Fallback Placeholder: High quality simulated GIS response
   const localResponse = generateLocalGisResponse(trimmedPrompt, context);
 
   return {

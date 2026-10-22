@@ -89,8 +89,8 @@ export async function reverseGeocode(lng, lat, mapboxApiKey = '') {
         const data = await res.json();
         if (data && data.features && data.features.length > 0) {
           const feat = data.features[0];
-          const rawName = feat.text || feat.place_name?.split(',')[0] || `Point (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-          const rawAddr = feat.place_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}, Kuala Lumpur`;
+          const rawName = feat.text || feat.place_name?.split(',')[0] || 'Custom Pinned Location';
+          const rawAddr = feat.place_name || 'Kuala Lumpur, Malaysia';
           return {
             name: toEnglishPlaceName(rawName),
             address: toEnglishAddress(rawAddr),
@@ -128,8 +128,8 @@ export async function reverseGeocode(lng, lat, mapboxApiKey = '') {
   }
 
   return {
-    name: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-    address: `${lat.toFixed(4)}, ${lng.toFixed(4)}, Kuala Lumpur, Malaysia`,
+    name: 'Custom Pinned Location',
+    address: 'Kuala Lumpur, Malaysia',
     coords: [lng, lat],
   };
 }

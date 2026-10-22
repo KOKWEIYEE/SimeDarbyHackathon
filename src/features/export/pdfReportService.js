@@ -151,7 +151,7 @@ export async function generatePdfAnalysisReport({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(15, 23, 42);
-  doc.text('Trustworthy Amenities Density & Spatial Metrics', margin, y);
+  doc.text('Amenities Density & Spatial Metrics', margin, y);
   y += 12;
 
   // 4 Metric Summary Cards in Grid

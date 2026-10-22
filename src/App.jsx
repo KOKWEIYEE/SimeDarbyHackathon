@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './features/ai/styles.css';
-import { initMapFeature } from './features/map/index.js';
+import { initMapFeature, searchPlace, getLocationRequirement } from './features/map/index.js';
 import {
   CATEGORY_GROUPS,
   ALL_CATEGORY_ITEMS,
@@ -12,6 +12,7 @@ import { calculateAmenitiesDensityScore } from './features/density/index.js';
 import { generatePdfAnalysisReport } from './features/export/index.js';
 import { calculateSiteComparison } from './features/comparison/index.js';
 import { callAiChatApi, isAiApiConfigured, getAiApiConfig } from './features/ai/index.js';
+import { SettingsSection, saveFavoriteLocation } from './features/settings/index.js';
 
 const TRAVEL_MODES = [
   { id: 'walking', label: 'Walk', speed: '4.5 km/h', desc: 'Pedestrian paths & sidewalks' },
@@ -63,12 +64,14 @@ export default function App() {
   const currentOriginRef = useRef(PRESET_LOCATIONS[0]);
 
   // Left Navigation Bar state
-  const [activeNavTab, setActiveNavTab] = useState('chat'); // 'chat' | 'travel'
+  const [activeNavTab, setActiveNavTab] = useState('chat'); // 'chat' | 'travel' | 'settings'
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFullSize, setIsFullSize] = useState(false);
 
   // Location selection state
   const [selectedLocation, setSelectedLocation] = useState(PRESET_LOCATIONS[0]);
+  const [locationAInput, setLocationAInput] = useState(PRESET_LOCATIONS[0].name);
+  const [isSearchingA, setIsSearchingA] = useState(false);
 
   // Map and Travel state
   const [mapMode, setMapMode] = useState('2d');
@@ -85,9 +88,89 @@ export default function App() {
   // Site Comparison state
   const [compareSiteA, setCompareSiteA] = useState(PRESET_LOCATIONS[0]);
   const [compareSiteB, setCompareSiteB] = useState(PRESET_LOCATIONS[1]);
+  const [locationBInput, setLocationBInput] = useState(PRESET_LOCATIONS[1].name);
+  const [isSearchingB, setIsSearchingB] = useState(false);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonResult, setComparisonResult] = useState(null);
   const [isComparing, setIsComparing] = useState(false);
+
+  // Pin on map mode ('none' | 'A' | 'B' | 'bookmark')
+  const [pinMode, setPinMode] = useState('none');
+  const pinModeRef = useRef('none');
+  pinModeRef.current = pinMode;
+  const [favoritesTrigger, setFavoritesTrigger] = useState(0);
+
+  // Search / geocode address for Location A
+  const handleSearchLocationA = async (query = locationAInput) => {
+    const q = String(query || '').trim();
+    if (!q) return;
+    setIsSearchingA(true);
+    try {
+      const res = await searchPlace(q);
+      if (res) {
+        const newLoc = {
+          id: `loc-a-${Date.now()}`,
+          name: res.shortName || res.name,
+          address: res.address,
+          coords: res.coords,
+          type: res.type || 'Custom Place',
+        };
+        setSelectedLocation(newLoc);
+        setLocationAInput(newLoc.name);
+        setAnalysisRun(false);
+        setAnalysisResult(null);
+        setComparisonResult(null);
+        setIsSplitViewActive(false);
+        mapFeatureRef.current?.clearIsochrone();
+        mapFeatureRef.current?.clearComparison();
+        mapFeatureRef.current?.updateOrigin(newLoc);
+        mapFeatureRef.current?.map.flyTo({ center: newLoc.coords, zoom: 13, duration: 800 });
+        currentOriginRef.current = newLoc;
+      } else {
+        setErrorMessage(`Could not find coordinates for "${q}". Try a different address.`);
+      }
+    } catch (err) {
+      console.warn('Geocoding Location A error:', err);
+      setErrorMessage(`Geocoding error: ${err.message}`);
+    } finally {
+      setIsSearchingA(false);
+    }
+  };
+
+  // Search / geocode address for Location B
+  const handleSearchLocationB = async (query = locationBInput) => {
+    const q = String(query || '').trim();
+    if (!q) return;
+    setIsSearchingB(true);
+    try {
+      const res = await searchPlace(q);
+      if (res) {
+        const newLoc = {
+          id: `loc-b-${Date.now()}`,
+          name: res.shortName || res.name,
+          address: res.address,
+          coords: res.coords,
+          type: res.type || 'Custom Place',
+        };
+        setCompareSiteB(newLoc);
+        setLocationBInput(newLoc.address || newLoc.name);
+        setComparisonResult(null);
+        mapFeatureRef.current?.updateSiteB(newLoc);
+        mapFeatureRef.current?.flyTo(newLoc.coords);
+        if (isSplitViewActive) {
+          setIsSplitViewActive(false);
+          mapFeatureRef.current?.stopSplitMapB();
+        }
+      } else {
+        setErrorMessage(`Could not find coordinates for "${q}". Try a different address.`);
+      }
+    } catch (err) {
+      console.warn('Geocoding Location B error:', err);
+      setErrorMessage(`Geocoding error: ${err.message}`);
+    } finally {
+      setIsSearchingB(false);
+    }
+  };
 
   // Split-Screen Comparison Slider state
   const mapContainerBRef = useRef(null);
@@ -111,7 +194,7 @@ export default function App() {
     if (!isDraggingSplit) return;
 
     const handleMove = (e) => {
-      const container = mapContainerRef.current;
+      const container = appRef.current || document.body;
       if (!container) return;
       const rect = container.getBoundingClientRect();
 
@@ -152,29 +235,91 @@ export default function App() {
     if (isSplitViewActive && mapFeatureRef.current && mapContainerBRef.current) {
       mapFeatureRef.current.startSplitMapB({ containerB: mapContainerBRef.current });
       isSplitRunningRef.current = true;
+      setTimeout(() => {
+        mapFeatureRef.current?.resize();
+      }, 50);
     } else if (!isSplitViewActive && mapFeatureRef.current && isSplitRunningRef.current) {
       mapFeatureRef.current.stopSplitMapB();
       isSplitRunningRef.current = false;
+      setTimeout(() => {
+        mapFeatureRef.current?.resize();
+      }, 50);
     }
   }, [isSplitViewActive]);
+
+  // Resize both maps when split slider moves
+  useEffect(() => {
+    if (isSplitViewActive && mapFeatureRef.current) {
+      mapFeatureRef.current.resize();
+    }
+  }, [splitPosition, isSplitViewActive]);
 
   // Categorized Multi-selection state
   const [allMenuOpen, setAllMenuOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState(INITIAL_SELECTED_CATEGORIES);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const allMenuRef = useRef(null);
+
+  // Horizontal category strip drag-to-scroll refs & handlers
+  const categoryStripRef = useRef(null);
+  const isStripDownRef = useRef(false);
+  const stripStartXRef = useRef(0);
+  const stripScrollLeftRef = useRef(0);
+  const isStripDraggingRef = useRef(false);
+
+  const handleCategoryStripMouseDown = (e) => {
+    if (e.button !== 0 || e.target.closest('.all-multi-menu')) return;
+    const el = categoryStripRef.current;
+    if (!el) return;
+    isStripDownRef.current = true;
+    isStripDraggingRef.current = false;
+    stripStartXRef.current = e.pageX - el.offsetLeft;
+    stripScrollLeftRef.current = el.scrollLeft;
+  };
+
+  const handleCategoryStripMouseMove = (e) => {
+    if (!isStripDownRef.current) return;
+    const el = categoryStripRef.current;
+    if (!el) return;
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - stripStartXRef.current) * 1.3;
+    if (Math.abs(walk) > 4) {
+      isStripDraggingRef.current = true;
+    }
+    el.scrollLeft = stripScrollLeftRef.current - walk;
+  };
+
+  const handleCategoryStripMouseUpOrLeave = () => {
+    isStripDownRef.current = false;
+    setTimeout(() => {
+      isStripDraggingRef.current = false;
+    }, 60);
+  };
+
+  const handleCategoryStripWheel = (e) => {
+    const el = categoryStripRef.current;
+    if (!el) return;
+    if (e.deltaY !== 0 && e.deltaX === 0) {
+      el.scrollLeft += e.deltaY;
+    }
+  };
+
+  // Interactive Amenities Filter Under Map Labels
+  const [showAmenityChooser, setShowAmenityChooser] = useState(false);
+  const [expandedGroupIds, setExpandedGroupIds] = useState([]);
+
+  const toggleGroupExpanded = (groupId) => {
+    setExpandedGroupIds((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
+  };
 
   // Top action menus & Chat state
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
   const aiConfig = useMemo(() => getAiApiConfig(), []);
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: 'bot',
-      text: 'Welcome to Abso — your AI GIS analyst. Ask about the map, location insights, time-travel reach, or category filters.',
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
 
   // Initialize Mapbox feature
   useEffect(() => {
@@ -193,18 +338,38 @@ export default function App() {
       mapContainerRef,
       errorBoxRef: mapErrorRef,
       onModeChange: setMapMode,
-      onLocationPick: (customLoc) => {
-        // Move origin pin to clicked location; don't auto-run isochrone
-        setSelectedLocation(customLoc);
-        setAnalysisRun(false);
-        setAnalysisResult(null);
-        setDensityScore(null);
-        setComparisonResult(null);
-        setIsSplitViewActive(false);
-        feature.clearIsochrone();
-        feature.clearComparison();
-        feature.updateOrigin(customLoc);
-        currentOriginRef.current = customLoc;
+      getPinMode: () => pinModeRef.current,
+      onLocationPick: (customLoc, siteTarget = 'A') => {
+        if (siteTarget === 'bookmark' || pinModeRef.current === 'bookmark') {
+          saveFavoriteLocation(customLoc);
+          setPinMode('none');
+          setFavoritesTrigger((prev) => prev + 1);
+          return;
+        }
+        if (siteTarget === 'B' || pinModeRef.current === 'B') {
+          setCompareSiteB(customLoc);
+          setLocationBInput(customLoc.address || customLoc.name);
+          setPinMode('none');
+          setComparisonResult(null);
+          feature.updateSiteB(customLoc);
+          if (isSplitViewActive) {
+            setIsSplitViewActive(false);
+            feature.stopSplitMapB();
+          }
+        } else {
+          setSelectedLocation(customLoc);
+          setLocationAInput(customLoc.address || customLoc.name);
+          setPinMode('none');
+          setAnalysisRun(false);
+          setAnalysisResult(null);
+          setDensityScore(null);
+          setComparisonResult(null);
+          setIsSplitViewActive(false);
+          feature.clearIsochrone();
+          feature.clearComparison();
+          feature.updateOrigin(customLoc);
+          currentOriginRef.current = customLoc;
+        }
       },
     });
 
@@ -226,11 +391,11 @@ export default function App() {
     }
   }, [travelMode, travelMinutes]);
 
-  // Update POI markers on map when multi-selection changes (only if analysis is active)
+  // Update POI markers on map when multi-selection changes (only if analysis or comparison is active)
   useEffect(() => {
     if (analysisRun && mapFeatureRef.current) {
       const stats = mapFeatureRef.current.updatePOIs(selectedCategories);
-      if (stats) {
+      if (stats && !stats.isComparison) {
         setAnalysisResult((prev) => ({
           ...prev,
           total: stats.total,
@@ -246,8 +411,44 @@ export default function App() {
         });
         setDensityScore(density);
       }
+    } else if (comparisonResult && mapFeatureRef.current) {
+      const compStats = mapFeatureRef.current.updatePOIs(selectedCategories);
+      if (compStats && compStats.isComparison) {
+        const categoriesAll = Array.from(
+          new Set([
+            ...compStats.statsA.typeBreakdown.map((t) => t.id),
+            ...compStats.statsB.typeBreakdown.map((t) => t.id),
+          ])
+        );
+        const catLookup = new Map(ALL_CATEGORY_ITEMS.map((c) => [c.id, c]));
+        const categoryComparisons = categoriesAll.map((catId) => {
+          const itemA = compStats.statsA.typeBreakdown.find((t) => t.id === catId);
+          const itemB = compStats.statsB.typeBreakdown.find((t) => t.id === catId);
+          const cat = catLookup.get(catId) || { label: catId, color: '#2563eb' };
+          const countA = itemA ? itemA.count : 0;
+          const countB = itemB ? itemB.count : 0;
+          return {
+            id: catId,
+            label: cat.label || catId,
+            countA,
+            countB,
+            difference: countA - countB,
+            color: cat.color || '#2563eb',
+            icon: cat.icon || '📍',
+            shape: cat.shape || 'circle',
+            shapeSymbol: cat.shapeSymbol || '●',
+          };
+        }).sort((a, b) => (b.countA + b.countB) - (a.countA + a.countB));
+
+        setComparisonResult((prev) => ({
+          ...prev,
+          statsA: compStats.statsA,
+          statsB: compStats.statsB,
+          categoryComparisons,
+        }));
+      }
     }
-  }, [selectedCategories, analysisRun, travelMinutes, travelMode]);
+  }, [selectedCategories, analysisRun, comparisonResult !== null, travelMinutes, travelMode]);
 
   // Handle outside clicks to close menus
   useEffect(() => {
@@ -449,7 +650,7 @@ export default function App() {
           totalPlaces: analysisResult?.total || PLACES_DATA.filter((p) => selectedCategories.includes(p.categoryId)).length,
           densityScore,
           selectedCategories,
-          isComparison,
+          isComparison: isComparing,
           comparisonResult,
         },
       });
@@ -596,8 +797,18 @@ export default function App() {
 
   return (
     <div id="app" ref={appRef} className={isFullSize ? 'chat-only' : ''}>
-      {/* Map container */}
-      <div id="map" ref={mapContainerRef} />
+      {/* Map container for Site A */}
+      <div
+        id="map"
+        ref={mapContainerRef}
+        style={
+          isSplitViewActive
+            ? isMobileScreen
+              ? { height: `${splitPosition}%`, width: '100%', position: 'absolute', top: 0, left: 0 }
+              : { width: `${splitPosition}%`, height: '100%', position: 'absolute', top: 0, left: 0 }
+            : {}
+        }
+      />
 
       {/* Draggable Split Screen Map Container for Site B */}
       {isSplitViewActive ? (
@@ -608,8 +819,8 @@ export default function App() {
             className="split-map-container-layer"
             style={
               isMobileScreen
-                ? { clipPath: `polygon(0% ${splitPosition}%, 100% ${splitPosition}%, 100% 100%, 0% 100%)` }
-                : { clipPath: `polygon(${splitPosition}% 0%, 100% 0%, 100% 100%, ${splitPosition}% 100%)` }
+                ? { top: `${splitPosition}%`, height: `${100 - splitPosition}%`, width: '100%', position: 'absolute', left: 0 }
+                : { left: `${splitPosition}%`, width: `${100 - splitPosition}%`, height: '100%', position: 'absolute', top: 0 }
             }
           />
 
@@ -640,14 +851,14 @@ export default function App() {
           {/* Floating Site Badges */}
           <div
             className="split-badge-floating site-a"
-            style={isMobileScreen ? { left: 16, top: 16 } : { left: 16, top: 16 }}
+            style={isMobileScreen ? { left: 16, top: 16 } : { left: isSidebarCollapsed ? 20 : 450, top: 66 }}
           >
             📍 Site A: {selectedLocation.name}
           </div>
 
           <div
             className="split-badge-floating site-b"
-            style={isMobileScreen ? { left: 16, bottom: 20 } : { right: 16, top: 16 }}
+            style={isMobileScreen ? { left: 16, bottom: 20 } : { right: 20, top: 66 }}
           >
             📍 Site B: {compareSiteB.name}
           </div>
@@ -655,12 +866,13 @@ export default function App() {
           <button
             type="button"
             className="split-close-floating-btn"
+            style={isMobileScreen ? { right: 16, top: 16, left: 'auto', transform: 'none' } : {}}
             onClick={() => {
               setIsSplitViewActive(false);
               mapFeatureRef.current?.stopSplitMapB();
             }}
           >
-            ✕ Close Split Screen
+            ✕ Exit Split Screen
           </button>
         </>
       ) : null}
@@ -670,6 +882,27 @@ export default function App() {
         <div className="analysis-loading-banner">
           <div className="loading-spinner" />
           <span>Searching Google Places within {travelMinutes}-minute {activeTravelModeObj.label.toLowerCase()} reach...</span>
+        </div>
+      ) : null}
+
+      {/* Floating Pin Mode Banner */}
+      {pinMode !== 'none' ? (
+        <div className="pin-mode-banner">
+          <span>
+            📍 Click anywhere on the map to pin{' '}
+            {pinMode === 'A'
+              ? 'Location A (Primary Site)'
+              : pinMode === 'B'
+              ? 'Location B (Comparison Site)'
+              : 'Bookmark Location'}
+          </span>
+          <button
+            type="button"
+            className="pin-mode-cancel-btn"
+            onClick={() => setPinMode('none')}
+          >
+            Cancel
+          </button>
         </div>
       ) : null}
 
@@ -740,7 +973,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Navigation Bar Switcher: AI Chatbot & Time Travel (Compare Site integrated inside Time Travel) */}
+        {/* Navigation Bar Switcher: AI Chatbot, Time Travel, Settings */}
         <nav className="left-nav-tabs" aria-label="Sidebar Navigation">
           <button
             id="tab-btn-chat"
@@ -758,6 +991,15 @@ export default function App() {
             onClick={() => setActiveNavTab('travel')}
           >
             Time Travel
+          </button>
+
+          <button
+            id="tab-btn-settings"
+            type="button"
+            className={activeNavTab === 'settings' ? 'nav-tab-btn active' : 'nav-tab-btn'}
+            onClick={() => setActiveNavTab('settings')}
+          >
+            Settings
           </button>
         </nav>
 
@@ -848,107 +1090,149 @@ export default function App() {
                 </button>
               </div>
             </div>
+          ) : activeNavTab === 'settings' ? (
+            /* TAB 3: SETTINGS SECTION */
+            <SettingsSection
+              currentLocation={selectedLocation}
+              onSelectLocation={(fav) => {
+                setSelectedLocation(fav);
+                setLocationAInput(fav.name);
+                setAnalysisRun(false);
+                setAnalysisResult(null);
+                setComparisonResult(null);
+                setIsSplitViewActive(false);
+                mapFeatureRef.current?.clearIsochrone();
+                mapFeatureRef.current?.clearComparison();
+                mapFeatureRef.current?.updateOrigin(fav);
+                mapFeatureRef.current?.map.flyTo({ center: fav.coords, zoom: 13, duration: 800 });
+                currentOriginRef.current = fav;
+              }}
+              pinMode={pinMode}
+              onStartPinBookmark={() => setPinMode('bookmark')}
+              onTogglePinBookmark={() =>
+                setPinMode((prev) => (prev === 'bookmark' ? 'none' : 'bookmark'))
+              }
+              favoritesTrigger={favoritesTrigger}
+            />
           ) : (
             /* TAB 2: TIME TRAVEL STUDIO */
             <div className="travel-studio">
 
-              {/* Location Selection */}
+              {/* Location Selection & Comparison */}
               <div className="studio-section">
                 <span className="section-label">Analysis Location</span>
-                <div className="location-select-wrap">
-                  <select
-                    id="travel-location-select"
-                    className="location-select"
-                    value={selectedLocation.id}
-                    onChange={(e) => {
-                      const found = PRESET_LOCATIONS.find((l) => l.id === e.target.value);
-                      if (found) {
-                        setSelectedLocation(found);
-                        setAnalysisRun(false);
-                        setAnalysisResult(null);
-                        setComparisonResult(null);
-                        setIsSplitViewActive(false);
-                        mapFeatureRef.current?.clearIsochrone();
-                        mapFeatureRef.current?.clearComparison();
-                        mapFeatureRef.current?.updateOrigin(found);
-                        if (mapFeatureRef.current) {
-                          mapFeatureRef.current.map.flyTo({ center: found.coords, duration: 700 });
+
+                {/* Minimalist Pure Text Fields for Site A and Site B (Matching Image 1) */}
+                <div className="site-pure-inputs-container">
+                  {/* Row 1: Site A */}
+                  <div className={`site-pure-input-row ${pinMode === 'A' ? 'pin-active' : ''}`}>
+                    <input
+                      type="text"
+                      id="location-a-input"
+                      className="site-pure-input-field"
+                      placeholder="Find a place"
+                      value={locationAInput}
+                      onChange={(e) => setLocationAInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearchLocationA();
                         }
-                        currentOriginRef.current = found;
-                      }
-                    }}
-                  >
-                    {PRESET_LOCATIONS.map((loc) => (
-                      <option key={loc.id} value={loc.id}>
-                        {loc.name}
-                      </option>
-                    ))}
-                    {selectedLocation.id === 'custom' ? (
-                      <option value="custom">
-                        {selectedLocation.name}
-                      </option>
-                    ) : null}
-                  </select>
-                </div>
-                <span className="location-hint">Or click anywhere on the map to pin a custom location</span>
-
-                {/* Secondary Compare Location Selector under Analysis Location */}
-                <div className="secondary-location-box">
-                  <button
-                    type="button"
-                    className={`secondary-compare-toggle ${isComparing ? 'active' : ''}`}
-                    onClick={() => {
-                      const next = !isComparing;
-                      setIsComparing(next);
-                      if (!next) {
-                        mapFeatureRef.current?.clearComparison();
-                        setIsSplitViewActive(false);
-                        setComparisonResult(null);
-                      }
-                    }}
-                  >
-                    <div className="secondary-compare-toggle-left">
-                      <span className="place-input-icon">📍</span>
-                      <span className="place-input-text">
-                        {isComparing ? 'Comparison Location (Site B)' : '+ Compare with another location'}
-                      </span>
+                      }}
+                    />
+                    <div className="site-pure-input-actions">
+                      {isSearchingA ? (
+                        <span className="site-searching-indicator">...</span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className={`site-pure-icon-btn ${pinMode === 'A' ? 'active' : ''}`}
+                        onClick={() => {
+                          const next = pinMode === 'A' ? 'none' : 'A';
+                          setPinMode(next);
+                        }}
+                        title={pinMode === 'A' ? 'Cancel pinning mode' : 'Pin location on map'}
+                      >
+                        {/* Folded Map Icon (Image 1 style) */}
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z" />
+                        </svg>
+                      </button>
                     </div>
-                    <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{isComparing ? '✕ Remove' : '+'}</span>
-                  </button>
+                  </div>
 
+                  {/* Row 2: Site B (When comparison is active) */}
                   {isComparing ? (
-                    <div className="secondary-location-content">
-                      <div className="location-select-wrap with-pin">
-                        <span className="field-pin">📍</span>
-                        <select
-                          id="secondary-location-select"
-                          className="location-select secondary-select"
-                          value={compareSiteB.id}
-                          onChange={(e) => {
-                            const found = PRESET_LOCATIONS.find((l) => l.id === e.target.value);
-                            if (found) {
-                              setCompareSiteB(found);
-                              setComparisonResult(null);
-                              if (isSplitViewActive) {
-                                setIsSplitViewActive(false);
-                                mapFeatureRef.current?.stopSplitMapB();
-                              }
-                            }
+                    <div className={`site-pure-input-row secondary ${pinMode === 'B' ? 'pin-active' : ''}`}>
+                      <input
+                        type="text"
+                        id="location-b-input"
+                        className="site-pure-input-field"
+                        placeholder="Find a place"
+                        value={locationBInput}
+                        onChange={(e) => setLocationBInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSearchLocationB();
+                          }
+                        }}
+                      />
+                      <div className="site-pure-input-actions">
+                        {isSearchingB ? (
+                          <span className="site-searching-indicator">...</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          className={`site-pure-icon-btn secondary ${pinMode === 'B' ? 'active' : ''}`}
+                          onClick={() => {
+                            const next = pinMode === 'B' ? 'none' : 'B';
+                            setPinMode(next);
                           }}
+                          title={pinMode === 'B' ? 'Cancel pinning mode' : 'Pin comparison site on map'}
                         >
-                          {PRESET_LOCATIONS.map((loc) => (
-                            <option key={`comp-b-${loc.id}`} value={loc.id} disabled={loc.id === selectedLocation.id}>
-                              {loc.name} {loc.id === selectedLocation.id ? '(Selected as Site A)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="metric-address-card secondary">
-                        <span className="metric-address-header">Location B Address</span>
-                        <span className="metric-address-text">{compareSiteB.address || 'Kuala Lumpur'}</span>
+                          {/* Folded Map Icon (Image 1 style) */}
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="site-pure-icon-btn site-pure-trash-btn"
+                          onClick={() => {
+                            setIsComparing(false);
+                            setPinMode('none');
+                            setComparisonResult(null);
+                            setIsSplitViewActive(false);
+                            mapFeatureRef.current?.clearComparison();
+                            mapFeatureRef.current?.setComparisonMode(false);
+                          }}
+                          title="Remove comparison location"
+                        >
+                          {/* Trash Can Icon (Image 1 style) */}
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      id="add-place-input-btn"
+                      className="add-place-input-btn"
+                      onClick={() => {
+                        setIsComparing(true);
+                        mapFeatureRef.current?.setComparisonMode(true, selectedLocation, compareSiteB);
+                        if (!locationBInput) {
+                          setLocationBInput(compareSiteB.address || compareSiteB.name);
+                        }
+                      }}
+                    >
+                      <span>+</span>
+                      <span>add place input</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -983,7 +1267,6 @@ export default function App() {
               <div className="studio-section">
                 <div className="section-label">
                   <span>Travel Duration</span>
-                  <span style={{ color: activeMinutesObj.color }}>{travelMinutes} min</span>
                 </div>
                 <div className="minutes-grid">
                   {TRAVEL_MINUTES.map((m) => (
@@ -1022,6 +1305,118 @@ export default function App() {
                 </button>
               </div>
 
+              {/* After Analysis: Interactive Amenities Filter Button under Map Labels */}
+              {(analysisRun || comparisonResult) && (
+                <div className="studio-section amenity-chooser-section">
+                  <button
+                    id="choose-map-amenities-btn"
+                    type="button"
+                    className={`choose-map-amenities-btn ${showAmenityChooser ? 'active' : ''}`}
+                    onClick={() => setShowAmenityChooser((prev) => !prev)}
+                    title="Choose which amenities categories to show on map"
+                  >
+                    <div className="choose-btn-left">
+                      <span className="choose-btn-icon">🏷️</span>
+                      <span className="choose-btn-text">Choose Amenities on Map</span>
+                    </div>
+                    <span className="choose-btn-badge">
+                      {selectedCategories.length} active {showAmenityChooser ? '▴' : '▾'}
+                    </span>
+                  </button>
+
+                  {/* Amenities Category Filter Dropdown Panel */}
+                  {showAmenityChooser && (
+                    <div className="amenity-chooser-dropdown">
+                      <div className="amenity-chooser-header">
+                        <span className="chooser-header-title">Filter Visible Categories</span>
+                        <div className="chooser-header-actions">
+                          <button
+                            type="button"
+                            className="chooser-action-link"
+                            onClick={selectAllCategories}
+                          >
+                            All ({ALL_CATEGORY_ITEMS.length})
+                          </button>
+                          <span className="chooser-divider">|</span>
+                          <button
+                            type="button"
+                            className="chooser-action-link"
+                            onClick={clearAllCategories}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="amenity-chooser-groups">
+                        {CATEGORY_GROUPS.map((group) => {
+                          const groupItemIds = group.items.map((i) => i.id);
+                          const activeInGroup = groupItemIds.filter((id) => selectedCategories.includes(id)).length;
+                          const isAllInGroup = activeInGroup === groupItemIds.length;
+                          const isExpanded = expandedGroupIds.includes(group.id);
+
+                          return (
+                            <div key={group.id} className="amenity-chooser-group-card">
+                              <div className="amenity-chooser-group-row">
+                                <label className="chooser-group-check-label">
+                                  <input
+                                    type="checkbox"
+                                    checked={isAllInGroup}
+                                    ref={(el) => {
+                                      if (el) el.indeterminate = activeInGroup > 0 && !isAllInGroup;
+                                    }}
+                                    onChange={() => toggleGroup(group.id)}
+                                  />
+                                  <span className="chooser-group-shape" style={{ color: group.color }}>
+                                    {group.shapeSymbol}
+                                  </span>
+                                  <span className="chooser-group-name">{group.name}</span>
+                                </label>
+                                <div className="chooser-group-right">
+                                  <span className="chooser-group-count">
+                                    {activeInGroup}/{group.items.length}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="chooser-group-expand-arrow"
+                                    onClick={() => toggleGroupExpanded(group.id)}
+                                    title="Toggle subcategories"
+                                  >
+                                    {isExpanded ? '▴' : '▾'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Granular Subcategories Accordion */}
+                              {isExpanded && (
+                                <div className="amenity-chooser-subitems">
+                                  {group.items.map((sub) => {
+                                    const isSubChecked = selectedCategories.includes(sub.id);
+                                    return (
+                                      <label key={sub.id} className={`chooser-subitem-row ${isSubChecked ? 'active' : ''}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isSubChecked}
+                                          onChange={() => toggleCategory(sub.id)}
+                                        />
+                                        <span className="chooser-subitem-shape" style={{ color: sub.color || group.color }}>
+                                          {sub.shapeSymbol || group.shapeSymbol}
+                                        </span>
+                                        <span className="chooser-subitem-label">{sub.label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Run Analysis / Dual Comparison Button */}
               <button
                 id="run-analysis-btn"
@@ -1053,23 +1448,27 @@ export default function App() {
                     <div className="brief-category-tags">
                       {comparisonResult.categoryComparisons.map((row) => (
                         <div key={row.id} className="brief-category-tag" title={`${row.label}: Site A has ${row.countA}, Site B has ${row.countB}`}>
-                          <span className="brief-cat-shape" style={{ color: row.color }}>
-                            {row.shape === 'circle' ? '●' : row.shape === 'triangle' ? '▲' : row.shape === 'star' ? '★' : row.shape === 'hexagon' ? '⬢' : row.shape === 'diamond' ? '◆' : '■'}
-                          </span>
-                          <span className="brief-cat-name">{row.label.split(' ')[0]}</span>
-                          <span className="brief-cat-num">{row.countA} / {row.countB}</span>
-                          <span
-                            className={`comp-delta-badge ${
-                              row.advantage === 'siteB'
-                                ? 'site-b-wins'
-                                : row.advantage === 'siteA'
-                                ? 'site-a-wins'
-                                : 'tie'
-                            }`}
-                            style={{ fontSize: '0.62rem', padding: '1px 4px', marginLeft: 2 }}
-                          >
-                            {row.diff > 0 ? `+${row.diff}B` : row.diff < 0 ? `+${Math.abs(row.diff)}A` : '='}
-                          </span>
+                          <div className="brief-cat-left">
+                            <span className="brief-cat-shape" style={{ color: row.color }}>
+                              {row.shape === 'circle' ? '●' : row.shape === 'triangle' ? '▲' : row.shape === 'star' ? '★' : row.shape === 'hexagon' ? '⬢' : row.shape === 'diamond' ? '◆' : '■'}
+                            </span>
+                            <span className="brief-cat-name">{row.label}</span>
+                          </div>
+                          <div className="brief-cat-right">
+                            <span className="brief-cat-num">{row.countA} / {row.countB}</span>
+                            <span
+                              className={`comp-delta-badge ${
+                                row.advantage === 'siteB'
+                                  ? 'site-b-wins'
+                                  : row.advantage === 'siteA'
+                                  ? 'site-a-wins'
+                                  : 'tie'
+                              }`}
+                              style={{ fontSize: '0.62rem', padding: '1px 4px', marginLeft: 2 }}
+                            >
+                              {row.diff > 0 ? `+${row.diff}B` : row.diff < 0 ? `+${Math.abs(row.diff)}A` : '='}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1086,14 +1485,16 @@ export default function App() {
                     <span>{isSplitViewActive ? 'Exit Split Screen' : 'Split Screen Comparison (Left / Right)'}</span>
                   </button>
 
-                  {/* 3. Exact Address Cards (Styled with distinct left bar accent like Image 1) */}
-                  <div className="metric-address-card">
-                    <span className="metric-address-header">SITE A ADDRESS (BLUE PIN)</span>
-                    <span className="metric-address-text">{selectedLocation.address || '19 Pudu Road, Bukit Bintang, 55100 Kuala Lumpur'}</span>
-                  </div>
-                  <div className="metric-address-card secondary">
-                    <span className="metric-address-header">SITE B ADDRESS (PURPLE PIN)</span>
-                    <span className="metric-address-text">{compareSiteB.address || 'Kuala Lumpur'}</span>
+                  {/* Pure text comparison addresses (NO card layout / NO blue left bar) */}
+                  <div className="metric-pure-text-box">
+                    <div className="metric-pure-text-row">
+                      <span className="pure-text-tag site-a">Site A:</span>
+                      <span className="pure-text-address">{selectedLocation.address || '19 Pudu Road, Bukit Bintang, 55100 Kuala Lumpur'}</span>
+                    </div>
+                    <div className="metric-pure-text-row">
+                      <span className="pure-text-tag site-b">Site B:</span>
+                      <span className="pure-text-address">{compareSiteB.address || 'Kuala Lumpur'}</span>
+                    </div>
                   </div>
 
                   {/* 4. Winner Banner */}
@@ -1168,13 +1569,15 @@ export default function App() {
                       <div className="brief-category-tags">
                         {analysisResult.typeBreakdown.map((item) => (
                           <div key={item.id} className="brief-category-tag">
-                            <span
-                              className="brief-cat-shape"
-                              style={{ color: item.color }}
-                            >
-                              {item.shapeSymbol || '●'}
-                            </span>
-                            <span className="brief-cat-name">{item.label}</span>
+                            <div className="brief-cat-left">
+                              <span
+                                className="brief-cat-shape"
+                                style={{ color: item.color }}
+                              >
+                                {item.shapeSymbol || '●'}
+                              </span>
+                              <span className="brief-cat-name">{item.label}</span>
+                            </div>
                             <span className="brief-cat-num">{item.count}</span>
                           </div>
                         ))}
@@ -1182,30 +1585,17 @@ export default function App() {
                     </div>
                   ) : null}
 
-                  {/* 2. Exact Address Chosen (Image 1 style) */}
-                  <div className="metric-address-card">
-                    <span className="metric-address-header">EXACT ADDRESS CHOSEN</span>
-                    <span className="metric-address-text">{selectedLocation.address || '19 Pudu Road, Bukit Bintang, 55100 Kuala Lumpur'}</span>
-                  </div>
-
-                  <div className="metric-row">
-                    <span className="metric-name">Mode</span>
-                    <span className="metric-value">
-                      {activeTravelModeObj.label} · {travelMinutes} min
-                    </span>
-                  </div>
-                  <div className="metric-row">
-                    <span className="metric-name">Labeled Places</span>
-                    <span className="metric-value" style={{ color: '#0f172a', fontWeight: 700 }}>
-                      {analysisResult?.total ?? 0} places ({analysisResult?.source || 'Google Places'})
-                    </span>
+                  {/* Pure text address display (NO card layout / NO blue left bar) */}
+                  <div className="metric-pure-text-row single">
+                    <span className="pure-text-icon">📍</span>
+                    <span className="pure-text-address">{selectedLocation.address || '19 Pudu Road, Bukit Bintang, 55100 Kuala Lumpur'}</span>
                   </div>
 
                   {/* Trustworthy Spatial Density & 15-Minute City Score Badge */}
                   {densityScore ? (
                     <div className="density-score-card">
                       <div className="density-header">
-                        <span className="density-title">Trustworthy Density Score</span>
+                        <span className="density-title">Density Score</span>
                         <span className="density-badge" style={{ backgroundColor: densityScore.badgeColor }}>
                           {densityScore.score} / 100
                         </span>
@@ -1224,7 +1614,6 @@ export default function App() {
                           <span className="density-stat-lbl">diversity</span>
                         </div>
                       </div>
-                      <div className="density-rating-text">{densityScore.rating}</div>
                     </div>
                   ) : null}
 
@@ -1246,175 +1635,156 @@ export default function App() {
 
       {/* Top Action Bar */}
       <div className={['top-actions', isSidebarCollapsed ? 'sidebar-hidden' : ''].filter(Boolean).join(' ')}>
-        <div className="quick-filters" aria-label="Place filters">
-          {/* Quick Filter Pill: Restaurants (Circle) */}
+        {/* All Categories Multi-Selection Button & Popover (Previous Design) */}
+        <div className="all-picker" ref={allMenuRef}>
           <button
+            id="all-toggle"
+            name="all-toggle"
             type="button"
-            className={isGroupActive('food') ? 'filter-pill active' : 'filter-pill'}
-            onClick={() => handleQuickFilterClick('food')}
+            className={['category-horizontal-tile', 'main-cat-tile', 'all-btn', allMenuOpen ? 'active open' : ''].join(' ')}
+            onClick={() => setAllMenuOpen((prev) => !prev)}
+            aria-expanded={allMenuOpen}
+            aria-haspopup="true"
+            aria-label="All categories with multi-selection"
+            title="All categories and subcategories selection"
           >
-            <span style={{ fontSize: '0.78rem', opacity: 0.9 }}>●</span>
-            <span>Restaurants</span>
+            <span>📂</span>
+            <span>All</span>
+            {selectedCategories.length > 0 ? (
+              <span className="all-badge">{selectedCategories.length}</span>
+            ) : null}
+            <span className="chevron-arrow">{allMenuOpen ? '▲' : '▼'}</span>
           </button>
 
-          {/* Quick Filter Pill: Transport (Triangle) */}
-          <button
-            type="button"
-            className={isGroupActive('transport') ? 'filter-pill active' : 'filter-pill'}
-            onClick={() => handleQuickFilterClick('transport')}
-          >
-            <span style={{ fontSize: '0.78rem', opacity: 0.9 }}>▲</span>
-            <span>Transport</span>
-          </button>
-
-          {/* Quick Filter Pill: Things to do (Star) */}
-          <button
-            type="button"
-            className={isGroupActive('things-to-do') ? 'filter-pill active' : 'filter-pill'}
-            onClick={() => handleQuickFilterClick('things-to-do')}
-          >
-            <span style={{ fontSize: '0.78rem', opacity: 0.9 }}>★</span>
-            <span>Things to do</span>
-          </button>
-
-          {/* Quick Filter Pill: Education (Hexagon) */}
-          <button
-            type="button"
-            className={isGroupActive('education') ? 'filter-pill active' : 'filter-pill'}
-            onClick={() => handleQuickFilterClick('education')}
-          >
-            <span style={{ fontSize: '0.78rem', opacity: 0.9 }}>⬢</span>
-            <span>Education</span>
-          </button>
-
-          {/* THE 'ALL' BUTTON (Replaces old 'Shop' button) with Categorized Multi-Selection */}
-          <div className="all-picker">
-            <button
-              id="all-toggle"
-              // Keep alias shop-toggle for compatibility
-              name="shop-toggle"
-              type="button"
-              className={['filter-pill', 'all-btn', allMenuOpen ? 'active open' : ''].join(' ')}
-              onClick={() => setAllMenuOpen((prev) => !prev)}
-              aria-expanded={allMenuOpen}
-              aria-haspopup="true"
-              aria-label="All categories with multi-selection"
-            >
-              <span>All</span>
-              {selectedCategories.length > 0 ? (
-                <span className="all-badge">{selectedCategories.length}</span>
-              ) : null}
-              <span className="chevron-arrow">▼</span>
-            </button>
-
-            {/* Categorized Multi-Selection Dropdown Popover */}
-            {allMenuOpen ? (
-              <div className="all-multi-menu" role="dialog" aria-label="All Categories Multi-selection">
-                {/* Menu Header with Search & Global Actions */}
-                <div className="all-menu-header">
-                  <div className="menu-header-top">
-                    <div className="menu-title-wrap">
-                      <span className="menu-title">All Categories</span>
-                      <span className="selection-count-tag">
-                        {selectedCategories.length} of {ALL_CATEGORY_ITEMS.length} selected
-                      </span>
-                    </div>
-
-                    <div className="menu-header-actions">
-                      <button
-                        type="button"
-                        className="menu-action-btn"
-                        onClick={selectAllCategories}
-                      >
-                        Select All
-                      </button>
-                      <button
-                        type="button"
-                        className="menu-action-btn"
-                        onClick={clearAllCategories}
-                      >
-                        Clear All
-                      </button>
-                    </div>
+          {/* Categorized Multi-Selection Dropdown Popover */}
+          {allMenuOpen ? (
+            <div className="all-multi-menu" role="dialog" aria-label="All Categories Multi-selection">
+              {/* Menu Header with Search & Global Actions */}
+              <div className="all-menu-header">
+                <div className="menu-header-top">
+                  <div className="menu-title-wrap">
+                    <span className="menu-title">All Categories</span>
+                    <span className="selection-count-tag">
+                      {selectedCategories.length} of {ALL_CATEGORY_ITEMS.length} selected
+                    </span>
                   </div>
 
-                  {/* Search Input inside Dropdown */}
-                  <div className="menu-search-wrap">
-                    <svg className="menu-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input
-                      type="text"
-                      className="menu-search-input"
-                      placeholder="Filter categories (e.g. coffee, gym, groceries)..."
-                      value={categorySearchQuery}
-                      onChange={(e) => setCategorySearchQuery(e.target.value)}
-                    />
+                  <div className="menu-header-actions">
+                    <button
+                      type="button"
+                      className="menu-action-btn"
+                      onClick={selectAllCategories}
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      className="menu-action-btn"
+                      onClick={clearAllCategories}
+                    >
+                      Clear All
+                    </button>
                   </div>
-                </div>
-
-                {/* Categorized Groups with Multi-Selection Checkboxes */}
-                <div className="all-menu-body">
-                  {filteredCategoryGroups.length === 0 ? (
-                    <div className="menu-empty-state">No categories match your search.</div>
-                  ) : (
-                    filteredCategoryGroups.map((group) => {
-                      const groupItemIds = group.items.map((i) => i.id);
-                      const allGroupChecked = groupItemIds.every((id) =>
-                        selectedCategories.includes(id)
-                      );
-
-                      return (
-                        <div key={group.id} className="category-group-card">
-                          <div className="category-group-header">
-                            <div className="group-header-left">
-                              <span style={{ color: group.color, fontSize: '0.86rem', fontWeight: 800 }}>{group.shapeSymbol}</span>
-                              <span>{group.name}</span>
-                              <span className="group-count-badge">({group.items.length})</span>
-                            </div>
-
-                            <button
-                              type="button"
-                              className="group-toggle-btn"
-                              onClick={() => toggleGroup(group.id)}
-                            >
-                              {allGroupChecked ? 'Deselect group' : 'Select all'}
-                            </button>
-                          </div>
-
-                          <div className="category-items-grid">
-                            {group.items.map((item) => {
-                              const isChecked = selectedCategories.includes(item.id);
-                              return (
-                                <label
-                                  key={item.id}
-                                  className={`category-checkbox-chip ${isChecked ? 'checked' : ''}`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={() => toggleCategory(item.id)}
-                                  />
-                                  <span
-                                    className="chip-shape-icon"
-                                    style={{ color: item.color }}
-                                    title={`Shape: ${item.shape || group.shape}`}
-                                  >
-                                    {item.shapeSymbol || group.shapeSymbol || '●'}
-                                  </span>
-                                  <span className="chip-label" title={item.label}>
-                                    {item.label}
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
                 </div>
               </div>
-            ) : null}
-          </div>
+
+              {/* Categorized Groups with Multi-Selection Checkboxes */}
+              <div className="all-menu-body">
+                {CATEGORY_GROUPS.map((group) => {
+                  const groupItemIds = group.items.map((i) => i.id);
+                    const allGroupChecked = groupItemIds.every((id) =>
+                      selectedCategories.includes(id)
+                    );
+
+                    return (
+                      <div key={group.id} className="category-group-card">
+                        <div className="category-group-header">
+                          <div className="group-header-left">
+                            <span style={{ color: group.color }}>{group.shapeSymbol || '●'}</span>
+                            <span>{group.name}</span>
+                            <span className="group-count-badge">({group.items.length})</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="group-toggle-btn"
+                            onClick={() => toggleGroup(group.id)}
+                          >
+                            {allGroupChecked ? 'Deselect group' : 'Select all'}
+                          </button>
+                        </div>
+
+                        <div className="category-items-grid">
+                          {group.items.map((item) => {
+                            const isChecked = selectedCategories.includes(item.id);
+                            return (
+                              <label
+                                key={item.id}
+                                className={`category-checkbox-chip ${isChecked ? 'checked' : ''}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleCategory(item.id)}
+                                />
+                                <span
+                                  className="chip-color-dot"
+                                  style={{ background: item.color }}
+                                />
+                                <span className="chip-label" title={item.label}>
+                                  {item.label}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Scrollable Horizontal Main Category Buttons (No numbers inside, white style like Export) */}
+        <div
+          ref={categoryStripRef}
+          className="categories-horizontal-strip"
+          role="toolbar"
+          aria-label="Main categories selection"
+          onMouseDown={handleCategoryStripMouseDown}
+          onMouseMove={handleCategoryStripMouseMove}
+          onMouseUp={handleCategoryStripMouseUpOrLeave}
+          onMouseLeave={handleCategoryStripMouseUpOrLeave}
+          onWheel={handleCategoryStripWheel}
+        >
+          {CATEGORY_GROUPS.map((group) => {
+            const groupItemIds = group.items.map((i) => i.id);
+            const activeCount = groupItemIds.filter((id) => selectedCategories.includes(id)).length;
+            const isAllActive = activeCount === groupItemIds.length;
+            const isPartial = activeCount > 0 && !isAllActive;
+
+            return (
+              <button
+                key={group.id}
+                type="button"
+                className={`category-horizontal-tile main-cat-tile ${isAllActive ? 'active' : isPartial ? 'partial' : ''}`}
+                onClick={() => {
+                  if (isStripDraggingRef.current) return;
+                  toggleGroup(group.id);
+                }}
+                title={`Toggle ${group.name}`}
+              >
+                <span
+                  className="cat-tile-shape"
+                  style={{ color: group.color }}
+                >
+                  {group.shapeSymbol || '●'}
+                </span>
+                <span className="cat-tile-label">{group.name}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* 2D / 3D View Toggle */}

@@ -293,14 +293,14 @@
   border: none;
   font-size: 0.76rem;
   font-weight: 700;
-  color: #2563eb;
+  color: #0f172a;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 6px;
 }
 
 .group-toggle-btn:hover {
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(15, 23, 42, 0.08);
 }
 
 .category-items-grid {
@@ -328,8 +328,9 @@
 }
 
 .category-checkbox-chip.checked {
-  background: #f0fdf4;
-  border-color: #86efac;
+  background: #f8fafc;
+  border-color: #0f172a;
+  box-shadow: 0 0 0 1px #0f172a inset;
 }
 
 .category-checkbox-chip input[type="checkbox"] {
@@ -571,51 +572,104 @@
 }
 
 .user-origin-pin-card {
-  background: #0f172a;
-  color: #ffffff;
-  padding: 5px 12px;
-  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 6px 10px;
+  border-radius: 9px;
   font-size: 0.74rem;
   font-weight: 700;
   margin-bottom: 4px;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.35);
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.14);
   letter-spacing: -0.01em;
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 250px;
+  max-width: 260px;
   text-align: center;
+  transition: all 0.2s ease;
 }
 
 .user-origin-pin.site-a-pin .user-origin-pin-card {
-  background: #1e3a8a;
-  border-color: #60a5fa;
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
 }
 
 .user-origin-pin.site-b-pin .user-origin-pin-card {
-  background: #581c87;
-  border-color: #c084fc;
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+.user-origin-pin-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
 }
 
 .user-origin-pin-title {
   font-size: 0.78rem;
   font-weight: 800;
-  color: #ffffff;
+  color: #0f172a;
   line-height: 1.2;
 }
 
+.pin-expand-arrow {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.12s ease;
+}
+
+.pin-expand-arrow:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.user-origin-pin-addr-expanded {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  width: 100%;
+  animation: fadeIn 0.15s ease;
+}
+
 .user-origin-pin-addr {
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 500;
-  color: #cbd5e1;
-  line-height: 1.2;
-  margin-top: 2px;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  color: #475569;
+  line-height: 1.25;
+  display: block;
+}
+
+/* Location Access Requirements Tag */
+.location-req-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  text-align: left;
+}
+
+.location-req-badge.dark {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fde047;
+  border-color: rgba(251, 191, 36, 0.4);
 }
 
 .user-origin-pin-icon {
@@ -675,7 +729,7 @@
   margin-left: 6px;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.97);
+  background: #ffffff;
   padding: 3px 8px;
   border-radius: 7px;
   border: 1px solid rgba(15, 23, 42, 0.14);
@@ -757,9 +811,10 @@
 }
 
 .labels-toggle-btn.active {
-  background: #f0fdf4;
-  border-color: #22c55e;
-  color: #15803d;
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.16);
 }
 
 /* Complex / Mall Marker */
@@ -794,6 +849,63 @@
   flex-shrink: 0;
 }
 
+/* Complex categorization badges & expandable details */
+.complex-cat-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 8px 0;
+}
+
+.complex-cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.complex-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 5px 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  cursor: pointer;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.complex-expand-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.complex-cat-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 800;
+  color: #1e293b;
+  font-size: 11px;
+  text-transform: uppercase;
+  margin-top: 8px;
+  margin-bottom: 3px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
 /* Analysis Loading Banner on Map */
 .analysis-loading-banner {
   position: absolute;
@@ -815,6 +927,43 @@
   font-weight: 600;
   pointer-events: none;
   animation: fadeInDown 0.25s ease-out;
+}
+
+/* Pin Mode Interactive Banner on Map */
+.pin-mode-banner {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0f172a;
+  color: #ffffff;
+  padding: 8px 18px;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  animation: fadeInDown 0.2s ease-out;
+}
+
+.pin-mode-cancel-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pin-mode-cancel-btn:hover {
+  background: #ef4444;
 }
 
 @keyframes fadeInDown {
