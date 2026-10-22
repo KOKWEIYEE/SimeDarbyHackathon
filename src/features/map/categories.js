@@ -394,7 +394,7 @@ export const CATEGORY_GROUPS = [
         shape: 'diamond',
         shapeSymbol: '◆',
         filters: [['shop', ['dry_cleaning', 'laundry']]],
-        google: ['laundry', 'dry_cleaner'],
+        google: ['laundry'],
       },
       {
         id: 'parcel',
@@ -430,7 +430,7 @@ export const CATEGORY_GROUPS = [
         shape: 'hexagon',
         shapeSymbol: '⬢',
         filters: [['amenity', ['kindergarten', 'childcare']]],
-        google: ['preschool', 'child_care'],
+        google: ['preschool'],
         checked: true,
       },
       {
@@ -460,7 +460,7 @@ export const CATEGORY_GROUPS = [
         shape: 'hexagon',
         shapeSymbol: '⬢',
         filters: [['amenity', ['university', 'college']]],
-        google: ['university', 'college'],
+        google: ['university'],
       },
       {
         id: 'tuition-centre',
@@ -469,7 +469,7 @@ export const CATEGORY_GROUPS = [
         shape: 'hexagon',
         shapeSymbol: '⬢',
         filters: [['amenity', ['tuition', 'training_centre', 'school']]],
-        google: ['tutoring_service', 'educational_institution', 'school'],
+        google: ['educational_institution', 'school'],
         checked: true,
       },
     ],

@@ -321,9 +321,10 @@ export function initMapFeature({
     const el = document.createElement('div');
     el.className = `user-origin-pin ${labelLetter === 'A' ? 'site-a-pin' : 'site-b-pin'}`;
     el.innerHTML = `
-      <div class="user-origin-pin-card">
-        <div class="user-origin-pin-header">
-          <span class="user-origin-pin-title">Site ${labelLetter}: ${shortTitle}</span>
+      <div class="user-origin-pin-card site-label-card-${labelLetter.toLowerCase()}" style="border: 2px solid ${color}; box-shadow: 0 4px 16px ${color}33;">
+        <div class="user-origin-pin-header" style="display: flex; align-items: center; gap: 6px;">
+          <span style="background: ${color}; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.5px;">LOCATION ${labelLetter}</span>
+          <span class="user-origin-pin-title" style="font-weight: 800; color: #0f172a; font-size: 12.5px;">${shortTitle}</span>
           <button type="button" class="pin-expand-arrow" title="Toggle address">▾</button>
         </div>
         <div class="user-origin-pin-addr-expanded" style="display: none;">
@@ -1540,6 +1541,7 @@ export function initMapFeature({
       .setPopup(popup)
       .addTo(map);
 
+    marker._comparativeItem = item;
     activeMarkers.push(marker);
   }
 
@@ -1579,7 +1581,7 @@ export function initMapFeature({
     }
     const targetB = featsB.find((f) => f.properties?.contour === minutes) || featsB[0];
 
-    // Update Mapbox layers
+    // Update Mapbox layers with clean distinct outlines, not a muddy overlapping heatmap
     const srcA = map.getSource('travel-isochrone');
     if (srcA) {
       srcA.setData({ type: 'FeatureCollection', features: [targetA] });
@@ -1587,6 +1589,23 @@ export function initMapFeature({
     const srcB = map.getSource('travel-isochrone-b');
     if (srcB) {
       srcB.setData({ type: 'FeatureCollection', features: [targetB] });
+    }
+
+    if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+      if (map.getLayer('travel-isochrone-fill')) {
+        map.setPaintProperty('travel-isochrone-fill', 'fill-opacity', 0.06);
+      }
+      if (map.getLayer('travel-isochrone-b-fill')) {
+        map.setPaintProperty('travel-isochrone-b-fill', 'fill-opacity', 0.06);
+      }
+      if (map.getLayer('travel-isochrone-line')) {
+        map.setPaintProperty('travel-isochrone-line', 'line-width', 3);
+        map.setLayoutProperty('travel-isochrone-line', 'visibility', 'visible');
+      }
+      if (map.getLayer('travel-isochrone-b-line')) {
+        map.setPaintProperty('travel-isochrone-b-line', 'line-width', 3);
+        map.setLayoutProperty('travel-isochrone-b-line', 'visibility', 'visible');
+      }
     }
 
     // Fit map bounds to encompass both isochrones
@@ -1909,8 +1928,106 @@ export function initMapFeature({
       if (srcB) {
         srcB.setData({ type: 'FeatureCollection', features: [] });
       }
+      if (map.getLayer('travel-isochrone-fill')) {
+        map.setPaintProperty('travel-isochrone-fill', 'fill-opacity', 0.16);
+      }
     }
     renderOriginMarker();
+  }
+
+  function focusComparisonSite(siteChoice = 'both') {
+    if (!lastComparisonData) return;
+    const { siteA, siteB, targetA, targetB, placesA, placesB, combinedBounds } = lastComparisonData;
+
+    if (siteChoice === 'siteA') {
+      if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+        if (map.getLayer('travel-isochrone-fill')) {
+          map.setLayoutProperty('travel-isochrone-fill', 'visibility', 'visible');
+          map.setPaintProperty('travel-isochrone-fill', 'fill-opacity', 0.16);
+        }
+        if (map.getLayer('travel-isochrone-line')) {
+          map.setLayoutProperty('travel-isochrone-line', 'visibility', 'visible');
+        }
+        if (map.getLayer('travel-isochrone-b-fill')) {
+          map.setLayoutProperty('travel-isochrone-b-fill', 'visibility', 'none');
+        }
+        if (map.getLayer('travel-isochrone-b-line')) {
+          map.setLayoutProperty('travel-isochrone-b-line', 'visibility', 'none');
+        }
+      }
+      if (siteAMarker?.getElement()) siteAMarker.getElement().style.display = '';
+      if (siteBMarker?.getElement()) siteBMarker.getElement().style.display = 'none';
+
+      activeMarkers.forEach((m) => {
+        if (m._comparativeItem && m.getElement()) {
+          const isA = m._comparativeItem.siteServed === 'siteA' || m._comparativeItem.siteServed === 'both';
+          m.getElement().style.display = isA ? '' : 'none';
+        }
+      });
+
+      if (siteA?.coords) {
+        map.flyTo({ center: siteA.coords, zoom: 14, duration: 700 });
+      }
+    } else if (siteChoice === 'siteB') {
+      if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+        if (map.getLayer('travel-isochrone-fill')) {
+          map.setLayoutProperty('travel-isochrone-fill', 'visibility', 'none');
+        }
+        if (map.getLayer('travel-isochrone-line')) {
+          map.setLayoutProperty('travel-isochrone-line', 'visibility', 'none');
+        }
+        if (map.getLayer('travel-isochrone-b-fill')) {
+          map.setLayoutProperty('travel-isochrone-b-fill', 'visibility', 'visible');
+          map.setPaintProperty('travel-isochrone-b-fill', 'fill-opacity', 0.16);
+        }
+        if (map.getLayer('travel-isochrone-b-line')) {
+          map.setLayoutProperty('travel-isochrone-b-line', 'visibility', 'visible');
+        }
+      }
+      if (siteAMarker?.getElement()) siteAMarker.getElement().style.display = 'none';
+      if (siteBMarker?.getElement()) siteBMarker.getElement().style.display = '';
+
+      activeMarkers.forEach((m) => {
+        if (m._comparativeItem && m.getElement()) {
+          const isB = m._comparativeItem.siteServed === 'siteB' || m._comparativeItem.siteServed === 'both';
+          m.getElement().style.display = isB ? '' : 'none';
+        }
+      });
+
+      if (siteB?.coords) {
+        map.flyTo({ center: siteB.coords, zoom: 14, duration: 700 });
+      }
+    } else {
+      // Both sites: show distinct outlines, subtle clean wash, both label points
+      if (map && map.isStyleLoaded && map.isStyleLoaded()) {
+        if (map.getLayer('travel-isochrone-fill')) {
+          map.setLayoutProperty('travel-isochrone-fill', 'visibility', 'visible');
+          map.setPaintProperty('travel-isochrone-fill', 'fill-opacity', 0.06);
+        }
+        if (map.getLayer('travel-isochrone-line')) {
+          map.setLayoutProperty('travel-isochrone-line', 'visibility', 'visible');
+          map.setPaintProperty('travel-isochrone-line', 'line-width', 3);
+        }
+        if (map.getLayer('travel-isochrone-b-fill')) {
+          map.setLayoutProperty('travel-isochrone-b-fill', 'visibility', 'visible');
+          map.setPaintProperty('travel-isochrone-b-fill', 'fill-opacity', 0.06);
+        }
+        if (map.getLayer('travel-isochrone-b-line')) {
+          map.setLayoutProperty('travel-isochrone-b-line', 'visibility', 'visible');
+          map.setPaintProperty('travel-isochrone-b-line', 'line-width', 3);
+        }
+      }
+      if (siteAMarker?.getElement()) siteAMarker.getElement().style.display = '';
+      if (siteBMarker?.getElement()) siteBMarker.getElement().style.display = '';
+
+      activeMarkers.forEach((m) => {
+        if (m.getElement()) m.getElement().style.display = '';
+      });
+
+      if (combinedBounds) {
+        map.fitBounds(combinedBounds, { padding: 90, duration: 800 });
+      }
+    }
   }
 
   return {
@@ -1934,6 +2051,7 @@ export function initMapFeature({
     getComparisonData: () => lastComparisonData,
     clearComparison,
     setComparisonMode,
+    focusComparisonSite,
     clearIsochrone,
     clearTransitRoutes,
     updatePOIs,

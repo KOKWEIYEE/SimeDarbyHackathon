@@ -18,6 +18,7 @@ import {
   getAiApiConfig,
   validateUserInput,
   detectAccessibilityIntent,
+  RichChatMessage,
 } from './features/ai/index.js';
 import { SettingsSection, saveFavoriteLocation } from './features/settings/index.js';
 import { SustainabilityPanel } from './features/sustainability/index.js';
@@ -103,6 +104,8 @@ export default function App() {
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonResult, setComparisonResult] = useState(null);
   const [isComparing, setIsComparing] = useState(false);
+  const [compAmenityTab, setCompAmenityTab] = useState('siteA'); // 'siteA' | 'siteB' | 'both'
+  const [mapComparisonView, setMapComparisonView] = useState('both'); // 'both' | 'siteA' | 'siteB'
 
   // Pin on map mode ('none' | 'A' | 'B' | 'bookmark')
   const [pinMode, setPinMode] = useState('none');
@@ -842,6 +845,87 @@ export default function App() {
           setChatRouteGeometry(route.geometry || null);
           fitWalkingCoordinates(route.geometry?.coordinates || [origin.coords,target.coords]);
           response.text = `${origin.name} to ${target.name}\n${action.mode}: ${(route.distance/1000).toFixed(2)} km, about ${Math.round(route.duration/60)} min.\n${action.mode === 'transit' ? (route.summarySteps || []).join('\n') : 'Follow the route highlighted on the map.'}\nSource: ${route.source} (estimate).${route.geometry ? '' : ' Only endpoints shown; route geometry unavailable.'}`;
+        } else if (action.type === 'compare') {
+          setChatDestination(null);
+          mapFeatureRef.current?.clearDestination();
+          const [originA, originB] = await Promise.all([resolve(action.siteA), resolve(action.siteB)]);
+          setSelectedLocation(originA);
+          setLocationAInput(originA.name);
+          setCompareSiteB(originB);
+          setLocationBInput(originB.name);
+          setIsComparing(true);
+          activeTargetRef.current = 'A';
+          currentOriginRef.current = originA;
+
+          const res = await mapFeatureRef.current?.runDualSiteAnalysis({
+            siteA: originA,
+            siteB: originB,
+            mode: action.mode || travelMode,
+            minutes: action.minutes || travelMinutes,
+            selectedCategoryIds: selectedCategories,
+          });
+
+          if (res) {
+            const densityA = calculateAmenitiesDensityScore({
+              isochroneGeometry: res.isochroneGeometryA,
+              places: res.statsA.places || [],
+              travelMinutes: action.minutes || travelMinutes,
+              mode: action.mode || travelMode,
+            });
+            const densityB = calculateAmenitiesDensityScore({
+              isochroneGeometry: res.isochroneGeometryB,
+              places: res.statsB.places || [],
+              travelMinutes: action.minutes || travelMinutes,
+              mode: action.mode || travelMode,
+            });
+            const comp = calculateSiteComparison({
+              siteA: originA,
+              siteB: originB,
+              statsA: res.statsA,
+              statsB: res.statsB,
+              densityA,
+              densityB,
+              mode: action.mode || travelMode,
+              minutes: action.minutes || travelMinutes,
+            });
+            setComparisonResult(comp);
+            setAnalysisRun(true);
+
+            const placesA = res.statsA.places || [];
+            const placesB = res.statsB.places || [];
+
+            const listA = placesA.slice(0, 8).map((p) => `• **${p.name || 'Amenity'}** (${p.cat?.label || 'Place'}${p.address ? ` - ${p.address}` : ''})`).join('\n');
+            const listB = placesB.slice(0, 8).map((p) => `• **${p.name || 'Amenity'}** (${p.cat?.label || 'Place'}${p.address ? ` - ${p.address}` : ''})`).join('\n');
+
+            const areaDiff = (densityB.areaKm2 - densityA.areaKm2).toFixed(2);
+            const scoreDiff = (densityB.score - densityA.score);
+            const placesDiff = (res.statsB.total - res.statsA.total);
+            const densityDiff = (densityB.densityPerKm2 - densityA.densityPerKm2).toFixed(1);
+
+            response.text = `## Comparison: ${originA.name} vs ${originB.name}
+Both locations have distinct label points marked separately on the map (${action.minutes || travelMinutes}-min ${action.mode || travelMode} reach).
+
+### 📍 Amenities in ${originA.name} (${placesA.length} places)
+${listA || '• No amenities found in selected categories within this catchment.'}
+
+### 📍 Amenities in ${originB.name} (${placesB.length} places)
+${listB || '• No amenities found in selected categories within this catchment.'}
+
+### 📊 Comparison Table
+| Comparison Metric | 📍 ${originA.name} | 📍 ${originB.name} | Difference / Advantage |
+| --- | --- | --- | --- |
+| Catchment Area Size | ${densityA.areaKm2} km² | ${densityB.areaKm2} km² | ${areaDiff > 0 ? `+${areaDiff} km² (${originB.name})` : areaDiff < 0 ? `+${Math.abs(areaDiff)} km² (${originA.name})` : 'Equal'} |
+| Amenities Number | ${res.statsA.total} places | ${res.statsB.total} places | ${placesDiff > 0 ? `+${placesDiff} in ${originB.name}` : placesDiff < 0 ? `+${Math.abs(placesDiff)} in ${originA.name}` : 'Equal'} |
+| 15-Min Accessibility Score | ${densityA.score}/100 | ${densityB.score}/100 | ${scoreDiff > 0 ? `+${scoreDiff} pts (${originB.name})` : scoreDiff < 0 ? `+${Math.abs(scoreDiff)} pts (${originA.name})` : 'Equal'} |
+| Amenities Density | ${densityA.densityPerKm2} /km² | ${densityB.densityPerKm2} /km² | ${densityDiff > 0 ? `+${densityDiff} /km² (${originB.name})` : densityDiff < 0 ? `+${Math.abs(densityDiff)} /km² (${originA.name})` : 'Equal'} |
+${comp.categoryComparisons.map((c) => `| ${c.label} | ${c.countA} | ${c.countB} | ${c.diff > 0 ? `+${c.diff} in ${originB.name}` : c.diff < 0 ? `+${Math.abs(c.diff)} in ${originA.name}` : 'Equal'} |`).join('\n')}
+| Accessibility Leader | **${comp.winner === 'siteA' ? originA.name : comp.winner === 'siteB' ? originB.name : 'Tied'}** | — | **${comp.winnerText}** |
+
+### 💡 Overall Insight
+• **Winner Assessment**: ${comp.winnerText}
+• **Urban Takeaways**: ${comp.takeaways.join('\n• ')}
+• **Livability Takeaway**: ${comp.winner === 'siteA' ? `${originA.name} provides greater immediate pedestrian access to everyday amenities.` : comp.winner === 'siteB' ? `${originB.name} benefits from a higher density and diverse urban cluster.` : 'Both locations provide well-balanced pedestrian accessibility.'}`;
+          }
         } else {
           setChatDestination(null);
           mapFeatureRef.current?.clearDestination();
@@ -858,13 +942,36 @@ export default function App() {
             mapFeatureRef.current?.map?.flyTo({center: origin.coords, zoom: 14, duration: 800});
             response.text += `\nViewing: ${origin.address || origin.name}`;
           } else {
-          setSelectedCategories(action.categories);
-          mapFeatureRef.current?.updateOrigin(origin);
-          currentOriginRef.current = origin;
-          const result = await executeAnalysis({origin, mode:action.mode, minutes:action.minutes, categories:action.categories});
-          if (!result?.success) throw new Error(result?.error || 'Place lookup failed. Please retry.');
-          const places = result.result.places || [];
-          response.text = `${response.text}\n\nMatched location: ${origin.address || origin.name}\n${action.minutes}-minute ${action.mode} catchment: ${places.length} returned places.\n${places.slice(0,15).map(p => '- ' + (p.name || p.properties?.name || 'Unnamed place')).join('\n')}\nSource: ${result.result.source || 'Map analysis'}. Results are not exhaustive; opening hours have not been checked.`;
+            setSelectedCategories(action.categories);
+            mapFeatureRef.current?.updateOrigin(origin);
+            currentOriginRef.current = origin;
+            const result = await executeAnalysis({origin, mode:action.mode, minutes:action.minutes, categories:action.categories});
+            if (!result?.success) throw new Error(result?.error || 'Place lookup failed. Please retry.');
+            const places = result.result.places || [];
+            const density = result.densityScore;
+
+            // Group places by category
+            const byCat = {};
+            for (const p of places) {
+              const catLabel = p.cat?.label || 'Other Facilities';
+              if (!byCat[catLabel]) byCat[catLabel] = [];
+              byCat[catLabel].push(p.name || 'Unnamed place');
+            }
+
+            const catListFormatted = Object.entries(byCat).map(([catName, pNames]) => {
+              return `• **${catName} (${pNames.length})**: ${pNames.slice(0, 6).join(', ')}${pNames.length > 6 ? ` and ${pNames.length - 6} more` : ''}`;
+            }).join('\n');
+
+            response.text = `Reachable amenities around **${origin.name}** within a ${action.minutes}-minute ${action.mode} reach.
+
+### 🏬 Amenities List (${places.length} places found)
+${catListFormatted || '• No places returned in the selected categories.'}
+
+### 💡 Overall Insight
+• **Spatial Coverage**: Catchment area spans **${density?.areaKm2 || 0} km²** with an urban density of **${density?.densityPerKm2 || 0} amenities/km²**.
+• **15-Minute City Score**: **${density?.score || 0} / 100** (${density?.rating || 'Active Urban Hub'}).
+• **Accessibility Assessment**: ${places.length > 15 ? 'High pedestrian vitality with comprehensive daily services, dining, and transit access within comfortable walking reach.' : places.length > 5 ? 'Moderate amenity coverage suitable for essential daily needs.' : 'Developing cluster; additional commercial or transit amenities recommended.'}
+• **Transit & Connectivity**: Features ${places.filter((p) => p.cat?.groupId === 'transport').length} accessible public transit hub(s) within reach.`;
           }
         }
       }
@@ -1066,6 +1173,53 @@ export default function App() {
             ✕ Exit Split Screen
           </button>
         </>
+      ) : null}
+
+      {/* Floating Map Comparison View Switcher (Controls separate location display) */}
+      {isComparing && comparisonResult && !isSplitViewActive ? (
+        <div className="map-comparison-bar">
+          <button
+            type="button"
+            className={`map-view-btn ${mapComparisonView === 'both' ? 'active' : ''}`}
+            onClick={() => {
+              setMapComparisonView('both');
+              mapFeatureRef.current?.focusComparisonSite('both');
+            }}
+            title="View both location label points on map with clean boundaries"
+          >
+            <span>🌐 Both Sites</span>
+          </button>
+          <button
+            type="button"
+            className={`map-view-btn ${mapComparisonView === 'siteA' ? 'active site-a' : ''}`}
+            onClick={() => {
+              setMapComparisonView('siteA');
+              mapFeatureRef.current?.focusComparisonSite('siteA');
+            }}
+            title={`Focus only on Site A: ${selectedLocation.name}`}
+          >
+            <span>📍 Site A ({comparisonResult.siteA.name})</span>
+          </button>
+          <button
+            type="button"
+            className={`map-view-btn ${mapComparisonView === 'siteB' ? 'active site-b' : ''}`}
+            onClick={() => {
+              setMapComparisonView('siteB');
+              mapFeatureRef.current?.focusComparisonSite('siteB');
+            }}
+            title={`Focus only on Site B: ${compareSiteB.name}`}
+          >
+            <span>📍 Site B ({comparisonResult.siteB.name})</span>
+          </button>
+          <button
+            type="button"
+            className="map-view-btn"
+            onClick={handleToggleSplitScreen}
+            title="View both locations completely separated left and right"
+          >
+            <span>◫ Split Screen</span>
+          </button>
+        </div>
       ) : null}
 
       {/* Floating Analysis Loading Indicator */}
@@ -1271,7 +1425,7 @@ export default function App() {
                 <div className="message-list">
                   {messages.map((message) => (
                     <div key={message.id} className={`message ${message.sender}`}>
-                      {message.text}
+                      <RichChatMessage text={message.text} sender={message.sender} />
                     </div>
                   ))}
                   {isAiThinking ? (
@@ -1678,42 +1832,12 @@ export default function App() {
               {/* DUAL SITE COMPARISON RESULTS */}
               {isComparing && comparisonResult ? (
                 <div className="compare-results-card">
-                  {/* 1. Brief Category Breakdown FIRST */}
-                  <div className="brief-category-summary">
-                    <div className="brief-category-header">
-                      <span className="brief-category-title">Category Breakdown (Site A vs Site B)</span>
-                      <span className="brief-category-count">{comparisonResult.statsA?.total || 0} vs {comparisonResult.statsB?.total || 0}</span>
-                    </div>
-                    <div className="brief-category-tags">
-                      {comparisonResult.categoryComparisons.map((row) => (
-                        <div key={row.id} className="brief-category-tag" title={`${row.label}: Site A has ${row.countA}, Site B has ${row.countB}`}>
-                          <div className="brief-cat-left">
-                            <span className="brief-cat-shape" style={{ color: row.color }}>
-                              {row.shape === 'circle' ? '●' : row.shape === 'triangle' ? '▲' : row.shape === 'star' ? '★' : row.shape === 'hexagon' ? '⬢' : row.shape === 'diamond' ? '◆' : '■'}
-                            </span>
-                            <span className="brief-cat-name">{row.label}</span>
-                          </div>
-                          <div className="brief-cat-right">
-                            <span className="brief-cat-num">{row.countA} / {row.countB}</span>
-                            <span
-                              className={`comp-delta-badge ${
-                                row.advantage === 'siteB'
-                                  ? 'site-b-wins'
-                                  : row.advantage === 'siteA'
-                                  ? 'site-a-wins'
-                                  : 'tie'
-                              }`}
-                              style={{ fontSize: '0.62rem', padding: '1px 4px', marginLeft: 2 }}
-                            >
-                              {row.diff > 0 ? `+${row.diff}B` : row.diff < 0 ? `+${Math.abs(row.diff)}A` : '='}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  {/* 1. Winner Banner & Split Screen Toggle */}
+                  <div className="winner-banner">
+                    <span>★</span>
+                    <span>{comparisonResult.winnerText}</span>
                   </div>
 
-                  {/* 2. Split Screen Compare Button */}
                   <button
                     type="button"
                     id="btn-split-screen-compare"
@@ -1724,48 +1848,249 @@ export default function App() {
                     <span>{isSplitViewActive ? 'Exit Split Screen' : 'Split Screen Comparison (Left / Right)'}</span>
                   </button>
 
+                  {/* 2. AMENITIES LIST FOR BOTH LOCATIONS SEPARATELY */}
+                  {(() => {
+                    const placesA = comparisonResult.statsA?.places || [];
+                    const placesB = comparisonResult.statsB?.places || [];
 
+                    const renderPlaceItem = (place, siteKey) => (
+                      <div
+                        key={`${siteKey}-${place.key || place.id || place.name || Math.random()}`}
+                        className="comp-amenity-card-item"
+                        onClick={() => {
+                          if (place.lon != null && place.lat != null) {
+                            mapFeatureRef.current?.map?.flyTo({ center: [place.lon, place.lat], zoom: 16, duration: 600 });
+                          }
+                        }}
+                        style={{ cursor: place.lon != null ? 'pointer' : 'default' }}
+                        title="Click to zoom to this amenity on the map"
+                      >
+                        <div className="comp-amenity-info">
+                          <span className="comp-amenity-name">{place.name || 'Unnamed Place'}</span>
+                          <div className="comp-amenity-sub">
+                            <span
+                              className="comp-amenity-badge"
+                              style={{
+                                backgroundColor: place.cat?.color ? `${place.cat.color}22` : '#e2e8f0',
+                                color: place.cat?.color || '#334155',
+                              }}
+                            >
+                              {place.cat?.label || 'Amenity'}
+                            </span>
+                            {place.distanceKm ? <span>{place.distanceKm} km away</span> : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
 
-                  {/* 4. Winner Banner */}
-                  <div className="winner-banner">
-                    <span>★</span>
-                    <span>{comparisonResult.winnerText}</span>
-                  </div>
+                    return (
+                      <div className="comp-amenities-dual-wrap">
+                        <div className="comp-amenities-header">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span className="comp-amenities-title">📍 Location Amenities</span>
+                            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                              {placesA.length} vs {placesB.length} places
+                            </span>
+                          </div>
+                          <div className="comp-amenities-tabs">
+                            <button
+                              type="button"
+                              className={`comp-tab-btn ${compAmenityTab === 'siteA' ? 'active site-a' : ''}`}
+                              onClick={() => setCompAmenityTab('siteA')}
+                            >
+                              <span>📍 {comparisonResult.siteA.name} ({placesA.length})</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`comp-tab-btn ${compAmenityTab === 'siteB' ? 'active site-b' : ''}`}
+                              onClick={() => setCompAmenityTab('siteB')}
+                            >
+                              <span>📍 {comparisonResult.siteB.name} ({placesB.length})</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`comp-tab-btn ${compAmenityTab === 'both' ? 'active both' : ''}`}
+                              onClick={() => setCompAmenityTab('both')}
+                            >
+                              <span>◫ Side-by-Side</span>
+                            </button>
+                          </div>
+                        </div>
 
-                  {/* 5. Dual Score Cards */}
-                  <div className="comparison-grid">
-                    <div className="comp-col-card site-a">
-                      <span className="comp-col-title">📍 {comparisonResult.siteA.name}</span>
-                      <div className="comp-score-large">
-                        {comparisonResult.densityA?.score ?? 0}{' '}
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>/100</span>
+                        <div className="comp-amenities-body">
+                          {compAmenityTab === 'siteA' ? (
+                            <div>
+                              <div className="comp-site-section-title site-a">
+                                📍 {comparisonResult.siteA.name} Amenities ({placesA.length})
+                              </div>
+                              {placesA.length === 0 ? (
+                                <div style={{ fontSize: '0.75rem', color: '#64748b', padding: '8px 0' }}>
+                                  No amenities found within this {comparisonResult.minutes}-minute catchment.
+                                </div>
+                              ) : (
+                                placesA.map((p) => renderPlaceItem(p, 'a'))
+                              )}
+                            </div>
+                          ) : compAmenityTab === 'siteB' ? (
+                            <div>
+                              <div className="comp-site-section-title site-b">
+                                📍 {comparisonResult.siteB.name} Amenities ({placesB.length})
+                              </div>
+                              {placesB.length === 0 ? (
+                                <div style={{ fontSize: '0.75rem', color: '#64748b', padding: '8px 0' }}>
+                                  No amenities found within this {comparisonResult.minutes}-minute catchment.
+                                </div>
+                              ) : (
+                                placesB.map((p) => renderPlaceItem(p, 'b'))
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                              <div>
+                                <div className="comp-site-section-title site-a">
+                                  📍 {comparisonResult.siteA.name} ({placesA.length})
+                                </div>
+                                {placesA.length === 0 ? (
+                                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>None</div>
+                                ) : (
+                                  placesA.map((p) => renderPlaceItem(p, 'a'))
+                                )}
+                              </div>
+                              <div>
+                                <div className="comp-site-section-title site-b">
+                                  📍 {comparisonResult.siteB.name} ({placesB.length})
+                                </div>
+                                {placesB.length === 0 ? (
+                                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>None</div>
+                                ) : (
+                                  placesB.map((p) => renderPlaceItem(p, 'b'))
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="comp-stat-sub">
-                        {comparisonResult.densityA?.rating || 'Fair'} • {comparisonResult.statsA?.total || 0} amenities
-                      </div>
-                      <div className="comp-stat-sub">
-                        Density: {comparisonResult.densityA?.densityPerKm2 || 0} /km²
-                      </div>
-                    </div>
+                    );
+                  })()}
 
-                    <div className="comp-col-card site-b">
-                      <span className="comp-col-title">📍 {comparisonResult.siteB.name}</span>
-                      <div className="comp-score-large">
-                        {comparisonResult.densityB?.score ?? 0}{' '}
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>/100</span>
-                      </div>
-                      <div className="comp-stat-sub">
-                        {comparisonResult.densityB?.rating || 'Fair'} • {comparisonResult.statsB?.total || 0} amenities
-                      </div>
-                      <div className="comp-stat-sub">
-                        Density: {comparisonResult.densityB?.densityPerKm2 || 0} /km²
-                      </div>
-                    </div>
-                  </div>
+                  {/* 3. COMPARISON TABLE: Area size, amenities number, accessibility, etc. */}
+                  {(() => {
+                    const areaA = comparisonResult.densityA?.areaKm2 ?? 0;
+                    const areaB = comparisonResult.densityB?.areaKm2 ?? 0;
+                    const areaDiff = Number((areaB - areaA).toFixed(2));
 
-                  {/* 6. Strategic Takeaways */}
+                    const totalA = comparisonResult.statsA?.total ?? 0;
+                    const totalB = comparisonResult.statsB?.total ?? 0;
+                    const totalDiff = totalB - totalA;
+
+                    const scoreA = comparisonResult.densityA?.score ?? 0;
+                    const scoreB = comparisonResult.densityB?.score ?? 0;
+                    const scoreDiff = scoreB - scoreA;
+
+                    const densityA = comparisonResult.densityA?.densityPerKm2 ?? 0;
+                    const densityB = comparisonResult.densityB?.densityPerKm2 ?? 0;
+                    const densityDiff = Number((densityB - densityA).toFixed(1));
+
+                    return (
+                      <div className="comp-metrics-table-card">
+                        <div className="comp-table-header">
+                          <span className="comp-table-title">📊 Comparison Table</span>
+                          <span className="comp-table-sub">
+                            {comparisonResult.minutes}-min {comparisonResult.mode} catchment
+                          </span>
+                        </div>
+                        <table className="comp-data-table">
+                          <thead>
+                            <tr>
+                              <th>Metric</th>
+                              <th className="th-site-a">📍 {comparisonResult.siteA.name}</th>
+                              <th className="th-site-b">📍 {comparisonResult.siteB.name}</th>
+                              <th>Advantage</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* Area Size */}
+                            <tr>
+                              <td className="td-label">Area Size</td>
+                              <td className="td-val site-a-val">{areaA} km²</td>
+                              <td className="td-val site-b-val">{areaB} km²</td>
+                              <td>
+                                <span className={`comp-delta-badge ${areaDiff > 0 ? 'site-b-wins' : areaDiff < 0 ? 'site-a-wins' : 'tie'}`}>
+                                  {areaDiff > 0 ? `+${areaDiff} km² B` : areaDiff < 0 ? `+${Math.abs(areaDiff)} km² A` : 'Equal'}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Amenities Number */}
+                            <tr>
+                              <td className="td-label">Amenities Number</td>
+                              <td className="td-val site-a-val">{totalA} places</td>
+                              <td className="td-val site-b-val">{totalB} places</td>
+                              <td>
+                                <span className={`comp-delta-badge ${totalDiff > 0 ? 'site-b-wins' : totalDiff < 0 ? 'site-a-wins' : 'tie'}`}>
+                                  {totalDiff > 0 ? `+${totalDiff} B` : totalDiff < 0 ? `+${Math.abs(totalDiff)} A` : 'Equal'}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Accessibility Score */}
+                            <tr>
+                              <td className="td-label">Accessibility Score</td>
+                              <td className="td-val site-a-val">
+                                {scoreA}/100 <span style={{ fontSize: '0.65rem', fontWeight: 500 }}>({comparisonResult.densityA?.rating || 'Fair'})</span>
+                              </td>
+                              <td className="td-val site-b-val">
+                                {scoreB}/100 <span style={{ fontSize: '0.65rem', fontWeight: 500 }}>({comparisonResult.densityB?.rating || 'Fair'})</span>
+                              </td>
+                              <td>
+                                <span className={`comp-delta-badge ${scoreDiff > 0 ? 'site-b-wins' : scoreDiff < 0 ? 'site-a-wins' : 'tie'}`}>
+                                  {scoreDiff > 0 ? `+${scoreDiff} pts B` : scoreDiff < 0 ? `+${Math.abs(scoreDiff)} pts A` : 'Equal'}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Amenities Density */}
+                            <tr>
+                              <td className="td-label">Amenities Density</td>
+                              <td className="td-val site-a-val">{densityA} /km²</td>
+                              <td className="td-val site-b-val">{densityB} /km²</td>
+                              <td>
+                                <span className={`comp-delta-badge ${densityDiff > 0 ? 'site-b-wins' : densityDiff < 0 ? 'site-a-wins' : 'tie'}`}>
+                                  {densityDiff > 0 ? `+${densityDiff} /km² B` : densityDiff < 0 ? `+${Math.abs(densityDiff)} /km² A` : 'Equal'}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Category rows */}
+                            {comparisonResult.categoryComparisons.map((cat) => (
+                              <tr key={cat.id}>
+                                <td className="td-label" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <span style={{ color: cat.color }}>
+                                    {cat.shape === 'circle' ? '●' : cat.shape === 'triangle' ? '▲' : cat.shape === 'star' ? '★' : cat.shape === 'hexagon' ? '⬢' : cat.shape === 'diamond' ? '◆' : '■'}
+                                  </span>
+                                  <span>{cat.label}</span>
+                                </td>
+                                <td className="td-val site-a-val">{cat.countA}</td>
+                                <td className="td-val site-b-val">{cat.countB}</td>
+                                <td>
+                                  <span className={`comp-delta-badge ${cat.advantage === 'siteB' ? 'site-b-wins' : cat.advantage === 'siteA' ? 'site-a-wins' : 'tie'}`}>
+                                    {cat.diff > 0 ? `+${cat.diff} B` : cat.diff < 0 ? `+${Math.abs(cat.diff)} A` : 'Equal'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                            {/* Leader Row */}
+                            <tr className="tr-winner-row">
+                              <td className="td-label" style={{ fontWeight: 800 }}>Overall Leader</td>
+                              <td colSpan={3} className="td-winner-cell" style={{ fontWeight: 800 }}>
+                                ★ {comparisonResult.winnerText}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 4. Strategic Insights */}
                   <div className="comparison-table-wrap">
-                    <span className="comparison-table-title">Strategic Insights</span>
+                    <span className="comparison-table-title">💡 Strategic Takeaways</span>
                     <div className="takeaway-list">
                       {comparisonResult.takeaways.map((tip, idx) => (
                         <div key={idx} className="takeaway-item">{tip}</div>
@@ -1773,7 +2098,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 7. Export Comparative PDF Report */}
+                  {/* 5. Export Comparative PDF Report */}
                   <button
                     type="button"
                     className="export-pdf-action-btn"

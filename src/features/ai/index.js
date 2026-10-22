@@ -11,6 +11,8 @@ export {
   detectAccessibilityIntent,
 } from './securityGuardrails.js';
 
+export { default as RichChatMessage } from './RichChatMessage.jsx';
+
 export function initAiFeature({ app, aiPanel }) {
   let compactPanelMode = 'b';
   let isFullSize = false;

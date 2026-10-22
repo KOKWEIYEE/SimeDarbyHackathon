@@ -129,6 +129,9 @@ export function cellIntersects(cell, geometry) {
 export async function googleNearby(cell, types, apiKey) {
   const center = cell.getCenter();
   const radius = Math.max(1, cell.getNorthWest().distanceTo(cell.getSouthEast()) / 2);
+  const cleanTypes = (types || []).filter(
+    (t) => !['dry_cleaner', 'child_care', 'college', 'tutoring_service'].includes(t)
+  );
 
   // 1. Try secure backend server proxy first (keeps Google API key completely hidden on backend)
   try {
@@ -138,7 +141,7 @@ export async function googleNearby(cell, types, apiKey) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        includedTypes: types,
+        includedTypes: cleanTypes.length ? cleanTypes : ['restaurant', 'cafe', 'store'],
         maxResultCount: 20,
         locationRestriction: {
           circle: {
@@ -152,6 +155,9 @@ export async function googleNearby(cell, types, apiKey) {
     if (backendRes.ok) {
       const data = await backendRes.json();
       return data.places || [];
+    } else {
+      const errData = await backendRes.json().catch(() => ({}));
+      console.warn('[Places] Backend proxy warning (HTTP ' + backendRes.status + '):', errData);
     }
   } catch (err) {
     console.warn('[Places] Backend places proxy failed, attempting direct fallback if key exists:', err);
