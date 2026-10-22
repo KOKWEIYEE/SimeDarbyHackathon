@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './features/ai/styles.css';
 import { initMapFeature, searchPlace, getLocationRequirement, getMapboxToken } from './features/map/index.js';
+import { mapboxConfig } from '../config.js';
 import {
   CATEGORY_GROUPS,
   ALL_CATEGORY_ITEMS,
@@ -375,7 +376,7 @@ export default function App() {
     let createdFeature = null;
 
     async function init() {
-      const apiKey = await getMapboxToken();
+      const apiKey = mapboxConfig?.token || (await getMapboxToken());
 
       if (!isMounted) return;
 
