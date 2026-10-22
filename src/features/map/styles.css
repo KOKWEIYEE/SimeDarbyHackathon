@@ -1027,3 +1027,15 @@
     justify-content: flex-end;
   }
 }
+
+/* Contain marker stacking inside the map, below app panels. */
+#map { isolation:isolate; z-index:0; }
+.mapboxgl-ctrl-bottom-right { bottom:0; }
+.overlay { right:72px; bottom:48px; max-width:min(320px,calc(100vw - 100px)); }
+.map-error { right:72px; }
+.export-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:40px; padding:9px 18px; border-radius:12px; background:#173f35; color:#fff; border:1px solid #173f35; box-shadow:0 4px 12px #173f3520; white-space:nowrap; }
+.export-btn:hover { background:#215547; color:#fff; border-color:#215547; }
+.export-btn:focus-visible,.export-menu button:focus-visible { outline:3px solid #61b5a1; outline-offset:3px; }
+.export-menu { min-width:200px; border-radius:12px; padding:6px; background:#fff; z-index:60; }
+.export-menu button { min-height:40px; padding:10px 12px; border-radius:8px; }
+.export-menu button:hover { background:#edf5f1; color:#173f35; }

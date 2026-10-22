@@ -58,6 +58,7 @@ export function saveFavoriteLocation(location) {
     address: location.address || 'Kuala Lumpur, Malaysia',
     coords: location.coords || [101.7069, 3.1390],
     type: location.type || 'Saved Favorite',
+    budgetTag: location.budgetTag ?? getStoredPreferences().priceRange,
     savedAt: new Date().toISOString(),
   };
 
@@ -103,4 +104,15 @@ export function savePreferences(newPrefs) {
     console.warn('Could not persist preferences to storage:', err);
     return DEFAULT_PREFERENCES;
   }
+}
+
+export function updateFavoriteBudget(id, budgetTag) {
+  if (!PRICE_RANGE_OPTIONS.some(option => option.id === budgetTag)) return getStoredFavorites();
+  const updated = getStoredFavorites().map(place => place.id === id ? { ...place, budgetTag } : place);
+  localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(updated));
+  return updated;
+}
+
+export function filterFavoritesByBudget(favorites, budgetTag) {
+  return budgetTag === 'all' ? favorites : favorites.filter(place => place.budgetTag === budgetTag);
 }

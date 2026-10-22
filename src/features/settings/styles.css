@@ -210,3 +210,27 @@
 .price-card.active .price-card-sub {
   color: #cbd5e1;
 }
+
+/* Budget controls share the construction panel's compact green styling. */
+.settings-studio label.pref-sub-label,
+.settings-studio label.favorite-item-addr {
+  display: grid; gap: 7px; white-space: normal; overflow: visible;
+  padding: 0; margin: 10px 0; line-height: 1.5;
+}
+.settings-studio select {
+  width: 100%; min-width: 0; min-height: 42px; padding: 10px 34px 10px 12px;
+  border: 1px solid #c9ded6; border-radius: 10px; background-color: #f3f8f5;
+  color: #185347; font: inherit; font-size: .8rem; cursor: pointer;
+}
+.settings-studio select:hover { border-color: #79ac98; }
+.settings-studio select:focus-visible,
+.settings-studio button:focus-visible { outline: 3px solid #60ac94; outline-offset: 2px; }
+.settings-studio p.favorite-item-addr { white-space: normal; padding: 0; line-height: 1.5; }
+.settings-studio .favorite-item-left { flex: 1; min-width: 0; }
+.settings-studio .favorite-item-card { align-items: flex-start; border-radius: 12px; }
+.settings-studio .site-pure-add-btn {
+  min-height: 38px; padding: 8px 14px; border: 1px solid #17634f;
+  border-radius: 10px; background: #17634f; color: white; font-weight: 650; cursor: pointer;
+}
+.settings-studio .site-pure-add-btn:hover:not(:disabled) { background: #12523f; }
+.settings-studio button:disabled { opacity: .5; cursor: not-allowed; }

@@ -6,7 +6,7 @@ import './styles.css';
 import ConstructionPanel from './ConstructionPanel.jsx';
 
 const labels={walking:'Walking',cycling:'Cycling (non-electric)',driving:'Petrol car',transit:'Public transport',electric:'Electric car (Malaysia grid)'};
-export default function SustainabilityPanel({origin,destination,onPick,picking,onComparison}) {
+export default function SustainabilityPanel({origin,destination,onPick,picking,onComparison,onShowRoute}) {
   const [routes,setRoutes]=useState([]);
   const [section,setSection]=useState('journey');
   const [busy,setBusy]=useState(false);
@@ -57,7 +57,7 @@ export default function SustainabilityPanel({origin,destination,onPick,picking,o
       <button type="button" aria-pressed={picking} onClick={onPick}>{picking?'Cancel destination selection':'Pick destination on map'}</button>
       {picking&&<small role="status">Click the map to place your destination.</small>}
     </div>
-    <div hidden={section!=='construction'}><ConstructionPanel key={`${origin.coords.join(',')}:${destination?.coords?.join(',')}`} origin={origin} destination={destination} walkingRoute={routes.find(r=>r.mode==='walking')}/></div>
+    <div hidden={section!=='construction'}><ConstructionPanel key={`${origin.coords.join(',')}:${destination?.coords?.join(',')}`} origin={origin} destination={destination} onShowRoute={onShowRoute} walkingRoute={routes.find(r=>r.mode==='walking')}/></div>
     <div hidden={section!=='journey'}>
     <fieldset><legend>Petrol car assumptions</legend>
       <label>Fuel consumption (litres / 100 km)

@@ -21,6 +21,7 @@ import {
 } from './features/ai/index.js';
 import { SettingsSection, saveFavoriteLocation } from './features/settings/index.js';
 import { SustainabilityPanel } from './features/sustainability/index.js';
+import { getRoute } from './features/sustainability/model.js';
 import PlaceSearch from './features/map/PlaceSearch.jsx';
 
 const TRAVEL_MODES = [
@@ -112,10 +113,49 @@ export default function App() {
 
   // Sustainability Destination & Comparison state
   const [destination, setDestination] = useState(null);
+  const [chatDestination, setChatDestination] = useState(null);
+  useEffect(() => {
+    const visibleDestination = activeNavTab === 'sustainability' ? destination : activeNavTab === 'chat' ? chatDestination : null;
+    mapFeatureRef.current?.updateDestination(visibleDestination);
+  }, [activeNavTab, destination, chatDestination]);
   const [pickingDestination, setPickingDestination] = useState(false);
   const pickingDestinationRef = useRef(false);
   pickingDestinationRef.current = pickingDestination;
   const [carbonComparison, setCarbonComparison] = useState(null);
+  const [chatRouteGeometry, setChatRouteGeometry] = useState(null);
+  const [highlightedWalkingGeometry, setHighlightedWalkingGeometry] = useState(null);
+  const fitWalkingCoordinates = (coords) => {
+    const map = mapFeatureRef.current?.map;
+    const points = (coords || []).filter(c=>Array.isArray(c)&&c.length>=2&&c.slice(0,2).every(Number.isFinite));
+    if (!map || !points.length) return;
+    const lngs=points.map(c=>c[0]), lats=points.map(c=>c[1]);
+    const width=map.getContainer().clientWidth;
+    map.fitBounds([[Math.min(...lngs),Math.min(...lats)],[Math.max(...lngs),Math.max(...lats)]],{padding:{top:90,bottom:100,left:width>900&&!isSidebarCollapsed?460:35,right:75},maxZoom:17,duration:700});
+  };
+  const showWalkingRoute = geometry => {
+    if (geometry?.type !== 'LineString' || !geometry.coordinates?.length) return;
+    setHighlightedWalkingGeometry(geometry);
+    fitWalkingCoordinates(geometry.coordinates);
+  };
+  useEffect(()=>{
+    setHighlightedWalkingGeometry(null);
+    if(activeNavTab === 'sustainability' && destination) fitWalkingCoordinates([selectedLocation.coords,destination.coords]);
+  },[selectedLocation.coords[0],selectedLocation.coords[1],destination?.coords?.[0],destination?.coords?.[1],activeNavTab]);
+  useEffect(()=>{
+    const map=mapFeatureRef.current?.map;
+    if(!map) return;
+    const paint=()=>{
+      const geometry = activeNavTab === 'chat' ? chatRouteGeometry : activeNavTab === 'sustainability' ? highlightedWalkingGeometry : null;
+      const data={type:'FeatureCollection',features:geometry?[{type:'Feature',properties:{},geometry}]:[]};
+      if(map.getSource('walkway-review')) map.getSource('walkway-review').setData(data);
+      else map.addSource('walkway-review',{type:'geojson',data});
+      if(!map.getLayer('walkway-review-outline')) map.addLayer({id:'walkway-review-outline',type:'line',source:'walkway-review',paint:{'line-color':'#ffffff','line-width':10},layout:{'line-cap':'round','line-join':'round'}});
+      if(!map.getLayer('walkway-review-line')) map.addLayer({id:'walkway-review-line',type:'line',source:'walkway-review',paint:{'line-color':'#087f6b','line-width':6},layout:{'line-cap':'round','line-join':'round'}});
+    };
+    if(map.isStyleLoaded()) paint();
+    map.on('style.load',paint);
+    return ()=>{map.off('style.load',paint);};
+  },[highlightedWalkingGeometry,chatRouteGeometry,activeNavTab]);
   // Ref to track parameters of active analysis to prevent accidental wipeout by effects
   const currentAnalysisParamsRef = useRef(null);
 
@@ -773,109 +813,61 @@ export default function App() {
     setDraft('');
     setIsAiThinking(true);
 
-    // 1. Pre-execution Security & Relevance Validation (SQLi, Prompt Injection, Domain Relevance)
-    const validation = validateUserInput(nextMessage);
-    if (!validation.isValid) {
-      const guardrailReply = {
-        id: Date.now() + 1,
-        sender: 'bot',
-        text: validation.message,
-        source: 'guardrail_block',
-        model: 'security-guardrail',
-      };
-      setMessages((previousMessages) => [...previousMessages, guardrailReply]);
-      setIsAiThinking(false);
-      return;
-    }
-
     try {
-      // 2. Check for Accessibility Analysis Intent
-      const accessibilityIntent = detectAccessibilityIntent(nextMessage, {
-        travelMode,
-        travelMinutes,
-        locationName: selectedLocation.name,
+      const response = await callAiChatApi({
+        prompt: nextMessage, messages: [...messages, userMessage],
+        context: { locationName: selectedLocation.name, destination: chatDestination, sustainability: carbonComparison,
+          travelMode, travelMinutes, analysisResult, densityScore, comparisonResult,
+          availableCategories: ALL_CATEGORY_ITEMS.map(item => item.id) },
       });
-
-      let effectiveOrigin = selectedLocation;
-      let effectiveMode = travelMode;
-      let effectiveMinutes = travelMinutes;
-      let executedResult = null;
-      let isActionExecuted = false;
-
-      if (accessibilityIntent.isAccessibilityIntent) {
-        // If sidebar is in full-size expanded mode, restore normal mode so map is visible!
-        if (isFullSize) {
-          setIsFullSize(false);
-        }
-
-        // Resolve target location if specified
-        if (accessibilityIntent.params?.matchedPreset) {
-          effectiveOrigin = accessibilityIntent.params.matchedPreset;
-        } else if (accessibilityIntent.params?.locationQuery) {
-          try {
-            const geocoded = await searchPlace(accessibilityIntent.params.locationQuery);
-            if (geocoded && geocoded.coords) {
-              effectiveOrigin = {
-                id: `ai-loc-${Date.now()}`,
-                name: geocoded.shortName || geocoded.name,
-                address: geocoded.address || geocoded.name,
-                coords: geocoded.coords,
-                type: geocoded.type || 'Custom Place',
-              };
-            }
-          } catch (geoErr) {
-            console.warn('AI location geocoding fallback:', geoErr);
+      if (response.action) {
+        setIsFullSize(false);
+        setChatRouteGeometry(null);
+        const resolve = async name => {
+          const place = await searchPlace(name);
+          if (!place?.coords) throw new Error(`Could not find ${name}. Please give a fuller address.`);
+          return { ...place, id: `chat-${name}`, name: place.shortName || place.name };
+        };
+        const action = response.action;
+        if (action.type === 'route') {
+          const [origin, target] = await Promise.all([resolve(action.origin), resolve(action.destination)]);
+          const route = await getRoute(action.mode, origin.coords, target.coords, {}, AbortSignal.timeout(30000));
+          setSelectedLocation(origin);
+          setLocationAInput(origin.name);
+          setChatDestination(target);
+          currentOriginRef.current = origin;
+          mapFeatureRef.current?.updateOrigin(origin);
+          mapFeatureRef.current?.updateDestination(target);
+          if (route.status !== 'available') throw new Error(`Route unavailable: ${route.reason}`);
+          setChatRouteGeometry(route.geometry || null);
+          fitWalkingCoordinates(route.geometry?.coordinates || [origin.coords,target.coords]);
+          response.text = `${origin.name} to ${target.name}\n${action.mode}: ${(route.distance/1000).toFixed(2)} km, about ${Math.round(route.duration/60)} min.\n${action.mode === 'transit' ? (route.summarySteps || []).join('\n') : 'Follow the route highlighted on the map.'}\nSource: ${route.source} (estimate).${route.geometry ? '' : ' Only endpoints shown; route geometry unavailable.'}`;
+        } else {
+          setChatDestination(null);
+          mapFeatureRef.current?.clearDestination();
+          const origin = await resolve(action.location);
+          if (action.type === 'focus') {
+            setSelectedLocation(origin);
+            setLocationAInput(origin.name);
+            currentOriginRef.current = origin;
+            mapFeatureRef.current?.updateOrigin(origin);
+            mapFeatureRef.current?.clearIsochrone();
+            setAnalysisResult(null);
+            setAnalysisRun(false);
+            setDensityScore(null);
+            mapFeatureRef.current?.map?.flyTo({center: origin.coords, zoom: 14, duration: 800});
+            response.text += `\nViewing: ${origin.address || origin.name}`;
+          } else {
+          setSelectedCategories(action.categories);
+          mapFeatureRef.current?.updateOrigin(origin);
+          currentOriginRef.current = origin;
+          const result = await executeAnalysis({origin, mode:action.mode, minutes:action.minutes, categories:action.categories});
+          if (!result?.success) throw new Error(result?.error || 'Place lookup failed. Please retry.');
+          const places = result.result.places || [];
+          response.text = `${response.text}\n\nMatched location: ${origin.address || origin.name}\n${action.minutes}-minute ${action.mode} catchment: ${places.length} returned places.\n${places.slice(0,15).map(p => '- ' + (p.name || p.properties?.name || 'Unnamed place')).join('\n')}\nSource: ${result.result.source || 'Map analysis'}. Results are not exhaustive; opening hours have not been checked.`;
           }
         }
-
-        if (accessibilityIntent.params?.mode) {
-          effectiveMode = accessibilityIntent.params.mode;
-        }
-        if (accessibilityIntent.params?.minutes) {
-          effectiveMinutes = accessibilityIntent.params.minutes;
-        }
-
-        // Update origin marker and fly to coordinates if location changed
-        if (effectiveOrigin.id !== selectedLocation.id || effectiveOrigin.name !== selectedLocation.name) {
-          setSelectedLocation(effectiveOrigin);
-          setLocationAInput(effectiveOrigin.name);
-          mapFeatureRef.current?.updateOrigin(effectiveOrigin);
-          mapFeatureRef.current?.map?.flyTo({ center: effectiveOrigin.coords, zoom: 13, duration: 800 });
-          currentOriginRef.current = effectiveOrigin;
-        }
-
-        // Execute map analysis directly on the map
-        executedResult = await executeAnalysis({
-          origin: effectiveOrigin,
-          mode: effectiveMode,
-          minutes: effectiveMinutes,
-          categories: selectedCategories,
-        });
-
-        isActionExecuted = Boolean(executedResult?.success);
       }
-
-      // 3. Call AI Chat Service with updated live spatial context
-      const response = await callAiChatApi({
-        prompt: nextMessage,
-        messages: [...messages, userMessage],
-        context: {
-          locationName: effectiveOrigin.name,
-          locationAddress: effectiveOrigin.address,
-          destination,
-          sustainability: carbonComparison,
-          travelMode: effectiveMode,
-          travelMinutes: effectiveMinutes,
-          totalPlaces: executedResult?.result?.total ?? (analysisResult?.total || PLACES_DATA.filter((p) => selectedCategories.includes(p.categoryId)).length),
-          densityScore: executedResult?.densityScore ?? densityScore,
-          analysisResult: executedResult?.result ?? analysisResult,
-          selectedCategories,
-          isComparison: isComparing,
-          comparisonResult,
-          isAnalysisAction: isActionExecuted,
-          isLocationAction: isActionExecuted,
-        },
-      });
 
       const botReply = {
         id: Date.now() + 1,
@@ -892,8 +884,8 @@ export default function App() {
         ...previousMessages,
         {
           id: Date.now() + 1,
-          sender: 'bot',
-          text: 'Unable to complete the AI analysis. Please check your network and API settings.',
+          sender: 'error',
+          text: err.message || 'Unable to reach the AI server.',
         },
       ]);
     } finally {
@@ -1354,6 +1346,7 @@ export default function App() {
                 picking={pickingDestination}
                 onPick={toggleDestinationPick}
                 onComparison={setCarbonComparison}
+                onShowRoute={showWalkingRoute}
               />
             </div>
           ) : (

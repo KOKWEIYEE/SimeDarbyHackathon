@@ -1,9 +1,31 @@
+import { summarizeTransitSteps } from './routeSummary.js';
 // EPA gasoline combustion factor, converted from kg / US gallon to kg / litre.
 import { extractSegments } from './carbon.js';
 import { getMapboxToken } from '../map/index.js';
 // Tailpipe CO2 only: not CO2e, upstream energy, infrastructure or manufacturing.
 export const PETROL_KG_CO2_PER_LITRE = 8.887 / 3.785411784;
 export const FACTOR_SOURCE = 'https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle';
+
+export function decodeRoutePolyline(encoded) {
+  if (!encoded) return undefined;
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  const read = () => {
+    let result = 0, shift = 0, byte;
+    do {
+      if (index >= encoded.length || shift > 30) throw new Error('Invalid route geometry.');
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 31) << shift;
+      shift += 5;
+    } while (byte >= 32);
+    return result & 1 ? ~(result >> 1) : result >> 1;
+  };
+  while (index < encoded.length) {
+    lat += read(); lng += read();
+    coordinates.push([lng / 1e5, lat / 1e5]);
+  }
+  return coordinates.length >= 2 ? { type: 'LineString', coordinates } : undefined;
+}
 
 export function transitInstructions(item) {
   return (item.legs || []).flatMap(leg => leg.steps || []).map(step => {
@@ -38,11 +60,11 @@ export async function getRoute(mode, origin, destination, keys, signal) {
       if (!response.ok) throw new Error(`Google Routes HTTP ${response.status}: check API access, quota and key restrictions.`);
       const data = await response.json();
       const item = data.routes?.[0];
-      if (item) route = {distance:item.distanceMeters, duration:Number(item.duration?.replace(/s$/, '')), instructions:transitInstructions(item), segments:extractSegments(item)};
+      if (item) route = {distance:item.distanceMeters, duration:Number(item.duration?.replace(/s$/, '')), geometry:decodeRoutePolyline(item.polyline?.encodedPolyline), instructions:transitInstructions(item), summarySteps:summarizeTransitSteps(item), segments:extractSegments(item)};
     } else {
       const mapboxToken = keys?.mapbox || (await getMapboxToken());
       if (!mapboxToken) throw new Error('Mapbox key is not configured.');
-      const query = new URLSearchParams({access_token:mapboxToken,overview:'full',geometries:'geojson',steps:'true',radiuses:'100;100'});
+      const query = new URLSearchParams({access_token:mapboxToken,overview:'full',geometries:'geojson',steps:'true',language:'en',radiuses:'100;100'});
       const response = await fetch(`https://api.mapbox.com/directions/v5/mapbox/${mode}/${origin.join(',')};${destination.join(',')}?${query}`,{signal});
       if (!response.ok) throw new Error(`Mapbox HTTP ${response.status}: check API access, quota and key restrictions.`);
       const data = await response.json();
@@ -52,12 +74,13 @@ export async function getRoute(mode, origin, destination, keys, signal) {
     if (![route.distance,route.duration].every(v=>Number.isFinite(v)&&v>=0)) throw new Error('Route metrics are incomplete.');
     return {mode,source,status:'available',distance:route.distance,duration:route.duration,
       geometry:route.geometry,
+      summarySteps:route.summarySteps,
       walkingSteps: mode === 'walking' ? route.legs?.flatMap(leg => leg.steps || []).filter(step => step.distance > 0).map(step => ({ name: step.name || 'Unnamed segment', distance: step.distance, geometry: step.geometry, instruction: step.maneuver?.instruction || '' })) : undefined,
       segments:route.segments,
       instructions:route.instructions || route.legs?.flatMap(leg=>leg.steps||[]).map(step=>step.maneuver?.instruction).filter(Boolean)||[],
       retrieved:new Date().toISOString()};
   } catch (error) {
-    return {mode,source,status:'unavailable',reason:signal.aborted ? 'Request cancelled or timed out.' :
+    return {mode,source,status:'unavailable',reason:signal?.aborted ? 'Request cancelled or timed out.' :
       error instanceof TypeError ? 'Network request failed.' : error.message};
   }
 }

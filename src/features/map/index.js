@@ -227,8 +227,8 @@ export function initMapFeature({
   let lastRawPlacesData = null; // cached raw { pois, complexes, source } from Google
   let lastTravelParams = { profile: 'walking', maxMinutes: 20 };
 
-  map.addControl(new mapboxgl.NavigationControl({ showCompass: true, showZoom: true }), 'top-right');
-  map.addControl(new mapboxgl.FullscreenControl(), 'top-left');
+  map.addControl(new mapboxgl.FullscreenControl(), 'bottom-right');
+  map.addControl(new mapboxgl.NavigationControl({ showCompass: true, showZoom: true }), 'bottom-right');
 
   function renderOriginMarker() {
     if (originMarker) {

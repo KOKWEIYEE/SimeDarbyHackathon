@@ -487,3 +487,64 @@
   margin: 0;
 }
 
+
+/* Consistent construction actions and selectable street cards. */
+.construction-panel button,.sustainability-panel nav button {
+  appearance:none; min-height:40px; border:1px solid #c9ded6; border-radius:10px;
+  padding:10px 14px; background:#f3f8f5; color:#185347; font:inherit; font-weight:650;
+  line-height:1.4; cursor:pointer; text-align:left; transition:background .15s,border-color .15s;
+}
+.construction-panel button:hover:not(:disabled),.sustainability-panel nav button:hover { background:#e3f1e9; border-color:#79ac98; }
+.construction-panel button:focus-visible,.sustainability-panel nav button:focus-visible { outline:3px solid #60ac94; outline-offset:2px; }
+.sustainability-panel nav { display:flex; gap:6px; padding:4px; background:#edf3ef; border-radius:12px; }
+.sustainability-panel nav button { flex:1; text-align:center; border-color:transparent; background:transparent; }
+.sustainability-panel nav button[aria-pressed="true"] { color:#fff; background:#17634f; box-shadow:0 2px 6px #17634f20; }
+.road-review { display:grid; gap:10px; }
+.road-card { display:grid; gap:8px; padding:12px; border:1px solid #dbe6df; border-radius:12px; background:#f9fbfa; }
+.road-card.selected { border-color:#16876c; background:#edf8f2; box-shadow:inset 3px 0 #16876c; }
+.road-card button { width:100%; background:#17634f; color:#fff; }
+.road-card button:hover:not(:disabled) { background:#12523f; color:#fff; }
+
+.construction-improvement { display: grid; gap: 8px; font-size: .8rem; font-weight: 650; }
+.improvement-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; border-radius: 12px; background: #edf3ef; }
+.construction-panel .improvement-options button { text-align: center; background: transparent; border-color: transparent; }
+.construction-panel .improvement-options button[aria-pressed="true"] { background: #17634f; color: #fff; box-shadow: 0 2px 6px #17634f20; }
+.construction-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.construction-panel select { min-height: 42px; padding: 10px 12px; border: 1px solid #c9ded6; border-radius: 10px; background: #f3f8f5; color: #185347; font: inherit; }
+@media (max-width: 420px) { .improvement-options { grid-template-columns: 1fr; } }
+
+/* Material editor: consistent fields, clear grouping and keyboard focus. */
+.construction-panel fieldset {
+  min-width: 0; margin: 6px 0; padding: 14px;
+  border: 1px solid #dbe6df; border-radius: 14px; background: #f9fbfa;
+}
+.construction-panel legend { padding: 0 8px; color: #185347; font-size: .85rem; font-weight: 700; }
+.construction-panel fieldset details {
+  margin-bottom: 12px; padding: 12px; border: 1px solid #e0e9e4;
+  border-radius: 10px; background: #fff;
+}
+.construction-panel fieldset summary { padding: 5px 0; font-size: .85rem; color: #185347; overflow-wrap: anywhere; }
+.construction-panel fieldset summary:focus-visible { outline: 3px solid #60ac94; outline-offset: 4px; border-radius: 4px; }
+.construction-panel label {
+  display: flex; flex-direction: column; gap: 7px; margin: 12px 0;
+  color: #475569; font-size: .76rem; font-weight: 600; line-height: 1.5;
+}
+.construction-panel input,
+.construction-panel select {
+  display: block; width: 100%; min-width: 0; min-height: 42px; margin: 0;
+  padding: 10px 12px; border: 1px solid #c9ded6; border-radius: 10px;
+  background: #f8fbf9; color: #183e34; font: inherit; font-size: .82rem;
+  transition: border-color .15s, box-shadow .15s;
+}
+.construction-panel input::placeholder { color: #788b83; font-weight: 400; }
+.construction-panel input:hover:not(:disabled),
+.construction-panel select:hover:not(:disabled) { border-color: #79ac98; }
+.construction-panel input:focus-visible,
+.construction-panel select:focus-visible { outline: 2px solid #60ac94; outline-offset: 2px; background: #fff; }
+.construction-panel input:disabled { background: #edf1ef; color: #64756e; cursor: not-allowed; }
+.construction-panel label small { font-weight: 400; color: #64748b; line-height: 1.5; }
+.construction-panel fieldset > button { width: 100%; text-align: center; }
+@media (max-width: 420px) {
+  .construction-panel fieldset { padding: 10px; }
+  .construction-panel fieldset details { padding: 10px; }
+}

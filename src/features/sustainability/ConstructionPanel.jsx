@@ -19,7 +19,7 @@ export default function ConstructionPanel(props) {
   </section>;
 }
 
-function ConstructionCalculator({ origin, destination, walkingRoute, automatic, seed, onCopy }) {
+function ConstructionCalculator({ origin, destination, walkingRoute, automatic, seed, onCopy, onShowRoute }) {
   const [type, setType] = useState(seed?.type || 'sidewalk');
   const [length, setLength] = useState(seed?.length || '');
   const [width, setWidth] = useState(seed?.width || (automatic ? '2' : ''));
@@ -34,7 +34,7 @@ function ConstructionCalculator({ origin, destination, walkingRoute, automatic, 
   const route = localRoute?.status === 'available' ? localRoute : walkingRoute;
   const candidates = (route?.walkingSteps || []).map((step, index) => ({ ...step, index })).sort((a, b) => b.distance - a.distance).slice(0, 5);
   async function useRoute() {
-    if (route?.status === 'available') { setLength(String(route.distance)); setSelected(null); return; }
+    if (route?.status === 'available') { setLength(String(route.distance)); setSelected(null); onShowRoute?.(route.geometry); return; }
     if (!destination) return;
     request.current?.abort();
     const controller = new AbortController(); request.current = controller;
@@ -45,7 +45,7 @@ function ConstructionCalculator({ origin, destination, walkingRoute, automatic, 
       const result = await getRoute('walking', origin.coords, destination.coords, { mapbox: mapboxToken }, controller.signal);
       if (request.current === controller) {
         setLocalRoute(result);
-        if (result.status === 'available') { setLength(String(result.distance)); setSelected(null); }
+        if (result.status === 'available') { setLength(String(result.distance)); setSelected(null); onShowRoute?.(result.geometry); }
       }
     } finally { clearTimeout(timeout); if (request.current === controller) setBusy(false); }
   }
@@ -69,16 +69,17 @@ function ConstructionCalculator({ origin, destination, walkingRoute, automatic, 
   return <section className="construction-panel"><h3>{automatic ? 'Concrete surface estimate' : 'Manual construction comparison'}</h3>
     <p>Compare two material specifications for the same proposed improvement.</p>
     <small>Map routes do not establish whether a sidewalk or shelter is missing. This proposal is for desktop comparison; construction suitability is unverified.</small>
-    {!automatic && <label>Improvement<select value={type} onChange={e => selectType(e.target.value)}><option value="sidewalk">Sidewalk improvement</option><option value="covered">Sidewalk with rain cover</option></select></label>}
+    {!automatic && <div className="construction-improvement"><span>Improvement</span><div className="improvement-options" role="group" aria-label="Improvement type"><button type="button" aria-pressed={type === 'sidewalk'} onClick={() => selectType('sidewalk')}>Sidewalk</button><button type="button" aria-pressed={type === 'covered'} onClick={() => selectType('covered')}>Raincover</button></div></div>}
     {automatic && <p>Scope: concrete surface only. Excludes sub-base, reinforcement, rain cover, supports, foundations and installation.</p>}
     <label>Proposed length (m)<input type="number" min="0.1" step="any" value={length} onChange={e => { setLength(e.target.value); setSelected(null); }}/></label>
     <button disabled={!destination || busy} onClick={useRoute}>{busy ? 'Fetching walking route...' : 'Use walking route length'}</button>
     {!destination && <small>Select a destination above first.</small>}
     {localRoute?.status === 'unavailable' && <p role="status">{localRoute.reason}</p>}
     <small>Using the route length assumes improvements along the entire route. Edit it for a shorter section.</small>
-    {candidates.length > 0 && <section><h3>Segments to review</h3>
+    {candidates.length > 0 && <section className="road-review"><h3>Explore streets on this route</h3>
       <p>Longest walking steps first, to review where an improvement could cover more route length. This is not a suitability score or evidence that facilities are missing.</p>
-      {candidates.map(step => <article key={step.index}><strong>{step.name} · {step.distance.toFixed(0)} m</strong><small>{step.instruction}</small><button onClick={() => { setSelected(step); setLength(String(step.distance)); }}>Compare plans for this segment</button></article>)}
+      <button type="button" onClick={()=>onShowRoute?.(route.geometry)}>Show full walking route</button>
+      {candidates.map(step => <article className={selected?.index===step.index ? "road-card selected" : "road-card"} key={step.index}><strong>{step.name} · {step.distance.toFixed(0)} m</strong><small>{step.instruction}</small><button onClick={() => { setSelected(step); setLength(String(step.distance)); onShowRoute?.(step.geometry); }}>Show street & compare plans</button></article>)}
       <small>Still unknown: existing shelter and sidewalks, crossings, slope, available width, drainage and land access. No segment is confirmed suitable for construction.</small>
       {selected && <p>Selected: {selected.name}. Both plans use this segment; update material quantities to match the scope.</p>}
     </section>}

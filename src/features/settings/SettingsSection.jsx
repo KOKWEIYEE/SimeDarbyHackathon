@@ -7,6 +7,8 @@ import {
   getStoredPreferences,
   savePreferences,
   PRICE_RANGE_OPTIONS,
+  updateFavoriteBudget,
+  filterFavoritesByBudget,
 } from './settingsService.js';
 import { searchPlace } from '../map/services/geocodingService.js';
 
@@ -19,6 +21,8 @@ export function SettingsSection({
   favoritesTrigger,
 }) {
   const [favorites, setFavorites] = useState([]);
+  const [budgetFilter, setBudgetFilter] = useState('all');
+  const visibleFavorites = filterFavoritesByBudget(favorites, budgetFilter);
   const [preferences, setPreferences] = useState(getStoredPreferences());
   const [bookmarkInput, setBookmarkInput] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -44,6 +48,7 @@ export function SettingsSection({
           address: res.address || q,
           coords: res.coords,
           type: 'Saved Bookmark',
+          budgetTag: preferences.priceRange,
         };
         const updated = saveFavoriteLocation(newFav);
         setFavorites(updated);
@@ -82,6 +87,13 @@ export function SettingsSection({
           )}
         </div>
 
+        <label className="pref-sub-label">
+          Budget tag for new bookmarks
+          <select value={preferences.priceRange} onChange={event => handlePriceSelect(event.target.value)}>
+            {PRICE_RANGE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.id === 'all' ? 'No budget tag' : option.label}</option>)}
+          </select>
+        </label>
+        <p className="favorite-item-addr">Your personal budget tag, not a verified venue price. Applies to searched and pinned bookmarks.</p>
         {/* Minimalist Pure Text Field matching Time Travel */}
         <div className="site-pure-inputs-container">
           <div className={`site-pure-input-row ${pinMode === 'bookmark' ? 'pin-active' : ''}`}>
@@ -160,14 +172,20 @@ export function SettingsSection({
           ) : null}
         </div>
 
+        <label className="pref-sub-label">
+          Show saved places
+          <select value={budgetFilter} onChange={event => setBudgetFilter(event.target.value)}>
+            {PRICE_RANGE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.id === 'all' ? 'All saved places' : option.label}</option>)}
+          </select>
+        </label>
         {/* List of saved favorites */}
         <div className="favorites-list">
-          {favorites.length === 0 ? (
+          {visibleFavorites.length === 0 ? (
             <div className="favorites-empty-card">
-              No saved favorite locations yet.
+              No saved places match this filter.
             </div>
           ) : (
-            favorites.map((fav) => (
+            visibleFavorites.map((fav) => (
               <div
                 key={fav.id}
                 className="favorite-item-card"
@@ -180,6 +198,15 @@ export function SettingsSection({
                     <span className="favorite-item-name">{fav.name}</span>
                   </div>
                   <span className="favorite-item-addr">{fav.address}</span>
+                  <label className="favorite-item-addr" onClick={event => event.stopPropagation()}>
+                    My budget tag
+                    <select aria-label={`Budget tag for ${fav.name}`} value={fav.budgetTag || 'all'} onChange={event => {
+                      try { setFavorites(updateFavoriteBudget(fav.id, event.target.value)); }
+                      catch { setInputError('Could not save the budget tag. Check browser storage.'); }
+                    }}>
+                      {PRICE_RANGE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.id === 'all' ? 'No budget tag' : option.label}</option>)}
+                    </select>
+                  </label>
                 </div>
                 <div className="favorite-item-actions">
                   <button
@@ -204,30 +231,6 @@ export function SettingsSection({
         </div>
       </div>
 
-      {/* 2. User Preferences Section */}
-      <div className="studio-section">
-        <div className="section-label">
-          <span>User Preferences</span>
-        </div>
-
-        <div className="settings-pref-box">
-          <span className="pref-sub-label">Price Range Tier</span>
-          <div className="price-grid">
-            {PRICE_RANGE_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                className={`price-card ${preferences.priceRange === opt.id ? 'active' : ''}`}
-                onClick={() => handlePriceSelect(opt.id)}
-                title={opt.label}
-              >
-                <span className="price-card-val">{opt.symbol}</span>
-                <span className="price-card-sub">{opt.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
