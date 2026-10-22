@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { constructionEstimate } from './construction.js';
 import { getRoute } from './model.js';
+import { getMapboxToken } from '../map/index.js';
 import { presetPlans, concreteSource } from './walkway-presets.js';
 
 const material = name => ({ name, quantity: '', factor: '', rate: '', source: '' });
@@ -40,7 +41,8 @@ function ConstructionCalculator({ origin, destination, walkingRoute, automatic, 
     const timeout = setTimeout(() => controller.abort(), 25000);
     setBusy(true);
     try {
-      const result = await getRoute('walking', origin.coords, destination.coords, { mapbox: (import.meta.env.VITE_MAPBOX_API_KEY || '').trim() }, controller.signal);
+      const mapboxToken = await getMapboxToken();
+      const result = await getRoute('walking', origin.coords, destination.coords, { mapbox: mapboxToken }, controller.signal);
       if (request.current === controller) {
         setLocalRoute(result);
         if (result.status === 'available') { setLength(String(result.distance)); setSelected(null); }

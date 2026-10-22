@@ -28,6 +28,7 @@ import {
   findLinesForStation,
   isTransportStation,
 } from './services/transitRoutes.js';
+import { getMapboxToken } from './services/mapboxTokenService.js';
 
 export {
   PLACES_DATA,
@@ -43,6 +44,7 @@ export {
   reverseGeocode,
   fetchIsochrones,
   isTransportStation,
+  getMapboxToken,
 };
 
 export function getLocationRequirement(poi) {
@@ -1159,10 +1161,7 @@ export function initMapFeature({
     const selectedSet = new Set(selectedCategoryIds);
     const selectedCategoryObjects = ALL_CATEGORY_ITEMS.filter((c) => selectedSet.has(c.id));
 
-    const keyToUse = cleanApiKey(
-      googleApiKey ||
-      (import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY || '')
-    );
+    const keyToUse = cleanApiKey(googleApiKey);
 
     const cellBounds = new CellBounds(south, west, north, east);
     let data;
@@ -1609,10 +1608,7 @@ export function initMapFeature({
     const north = Math.max(boundsA.north, boundsB.north);
     const east = Math.max(boundsA.east, boundsB.east);
 
-    const keyToUse = cleanApiKey(
-      googleApiKey ||
-      (import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY || '')
-    );
+    const keyToUse = cleanApiKey(googleApiKey);
     const cellBounds = new CellBounds(south, west, north, east);
 
     let data = null;

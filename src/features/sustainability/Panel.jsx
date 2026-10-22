@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getRoute } from './model.js';
+import { getMapboxToken } from '../map/index.js';
 import { dataset, operationalCarbon, electricCarbon, malaysiaGrid } from './carbon.js';
 import './styles.css';
 import ConstructionPanel from './ConstructionPanel.jsx';
@@ -31,8 +32,8 @@ export default function SustainabilityPanel({origin,destination,onPick,picking,o
     const request=new AbortController();controller.current=request;
     const timeout=setTimeout(()=>request.abort(),25000);
     setBusy(true);setRoutes([]);
-    const keys={mapbox:(import.meta.env.VITE_MAPBOX_API_KEY||'').trim(),
-      google:(import.meta.env.VITE_GOOGLE_API_KEY||import.meta.env.GOOGLE_API_KEY||'').trim()};
+    const mapboxToken = await getMapboxToken();
+    const keys = { mapbox: mapboxToken };
     try {
       const results=await Promise.all(Object.keys(labels).filter(mode=>mode!=='electric').map(mode=>getRoute(mode,origin.coords,destination.coords,keys,request.signal)));
       if(controller.current===request&&!request.signal.aborted)setRoutes([...results,{...results.find(r=>r.mode==='driving'),mode:'electric'}]);

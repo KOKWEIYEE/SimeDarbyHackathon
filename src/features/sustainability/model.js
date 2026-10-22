@@ -1,5 +1,6 @@
 // EPA gasoline combustion factor, converted from kg / US gallon to kg / litre.
 import { extractSegments } from './carbon.js';
+import { getMapboxToken } from '../map/index.js';
 // Tailpipe CO2 only: not CO2e, upstream energy, infrastructure or manufacturing.
 export const PETROL_KG_CO2_PER_LITRE = 8.887 / 3.785411784;
 export const FACTOR_SOURCE = 'https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle';
@@ -27,21 +28,21 @@ export async function getRoute(mode, origin, destination, keys, signal) {
   try {
     let route;
     if (mode === 'transit') {
-      if (!keys.google) throw new Error('Google Routes key is not configured.');
       const point = coords => ({ location: { latLng: { latitude: coords[1], longitude: coords[0] } } });
-      const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-        method: 'POST', signal,
-        headers: {'Content-Type':'application/json','X-Goog-Api-Key':keys.google,
-          'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.navigationInstruction,routes.legs.steps.transitDetails'},
-        body: JSON.stringify({origin:point(origin),destination:point(destination),travelMode:'TRANSIT'}),
+      const response = await fetch('/api/routes/transit', {
+        method: 'POST',
+        signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: point(origin), destination: point(destination), travelMode: 'TRANSIT' }),
       });
       if (!response.ok) throw new Error(`Google Routes HTTP ${response.status}: check API access, quota and key restrictions.`);
       const data = await response.json();
       const item = data.routes?.[0];
       if (item) route = {distance:item.distanceMeters, duration:Number(item.duration?.replace(/s$/, '')), instructions:transitInstructions(item), segments:extractSegments(item)};
     } else {
-      if (!keys.mapbox) throw new Error('Mapbox key is not configured.');
-      const query = new URLSearchParams({access_token:keys.mapbox,overview:'full',geometries:'geojson',steps:'true',radiuses:'100;100'});
+      const mapboxToken = keys?.mapbox || (await getMapboxToken());
+      if (!mapboxToken) throw new Error('Mapbox key is not configured.');
+      const query = new URLSearchParams({access_token:mapboxToken,overview:'full',geometries:'geojson',steps:'true',radiuses:'100;100'});
       const response = await fetch(`https://api.mapbox.com/directions/v5/mapbox/${mode}/${origin.join(',')};${destination.join(',')}?${query}`,{signal});
       if (!response.ok) throw new Error(`Mapbox HTTP ${response.status}: check API access, quota and key restrictions.`);
       const data = await response.json();

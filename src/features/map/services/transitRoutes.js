@@ -334,24 +334,23 @@ export async function getActiveTransitRoutesWithGoogleFirst(isochroneGeometry, i
     return { type: 'FeatureCollection', features: [] };
   }
 
-  if (googleApiKey) {
+  if (true) {
     try {
       const googleFeatures = [];
       for (const line of activeLines) {
         try {
           const firstSt = line.stations[0];
           const lastSt = line.stations[line.stations.length - 1];
-          const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+          const res = await fetch('/api/routes/transit', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Goog-Api-Key': googleApiKey,
-              'X-Goog-FieldMask': 'routes.polyline.encodedPolyline',
             },
             body: JSON.stringify({
               origin: { location: { latLng: { latitude: firstSt.coords[1], longitude: firstSt.coords[0] } } },
               destination: { location: { latLng: { latitude: lastSt.coords[1], longitude: lastSt.coords[0] } } },
               travelMode: 'TRANSIT',
+              fieldMask: 'routes.polyline.encodedPolyline',
             }),
           });
 

@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { aiBackendPlugin } from './server.js';
 
 export default defineConfig({
-  plugins: [react()],
-  envPrefix: ['VITE_', 'GOOGLE_'],
+  plugins: [react(), aiBackendPlugin()],
+  envPrefix: 'VITE_',
 });
+

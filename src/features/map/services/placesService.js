@@ -17,11 +17,11 @@ function approxDistanceMeters(lat1, lon1, lat2, lon2) {
 }
 
 export function hasGoogleKey(key) {
-  return Boolean(key && !key.startsWith('PASTE_') && key.length > 10);
+  return true;
 }
 
 /**
- * Searches nearby places using Google Places (if key provided), Overpass, or local curated fallback.
+ * Searches nearby places using Google Places (via backend proxy), Overpass, or local curated fallback.
  */
 export async function searchNearbyPlaces({
   centerCoords, // [lng, lat]
@@ -52,18 +52,16 @@ export async function searchNearbyPlaces({
   let rawComplexes = [];
   let source = 'Curated GIS Data';
 
-  // 1. Try Google Places API if valid key
-  if (hasGoogleKey(googleApiKey)) {
-    try {
-      const gResult = await loadFromGoogle(catObjects, searchBounds, isoGeometry, googleApiKey);
-      if (gResult.pois && gResult.pois.length > 0) {
-        rawPlaces = gResult.pois;
-        rawComplexes = gResult.complexes || [];
-        source = gResult.source;
-      }
-    } catch (err) {
-      console.warn('Google Places search failed, falling back:', err.message);
+  // 1. Try Google Places via backend server proxy
+  try {
+    const gResult = await loadFromGoogle(catObjects, searchBounds, isoGeometry, googleApiKey);
+    if (gResult.pois && gResult.pois.length > 0) {
+      rawPlaces = gResult.pois;
+      rawComplexes = gResult.complexes || [];
+      source = gResult.source;
     }
+  } catch (err) {
+    console.warn('Google Places search via backend failed, falling back:', err.message);
   }
 
   // 2. Try OpenStreetMap Overpass if no Google Places results

@@ -1,6 +1,6 @@
 import { makeComplex, floorFromText, geometryContains } from './complexesService.js';
 
-export const DEFAULT_GOOGLE_API_KEY = 'AIzaSyDP18ON6QtVd1iVJ4Pj20QvJSmx9e8DBEQ';
+export const DEFAULT_GOOGLE_API_KEY = '';
 export const GOOGLE_NEARBY_URL = 'https://places.googleapis.com/v1/places:searchNearby';
 export const GOOGLE_FIELDS =
   'places.id,places.displayName,places.location,places.types,places.primaryType,' +
@@ -11,9 +11,9 @@ export const GOOGLE_MAX_TYPES = 45; // Places API allows at most 50 includedType
 export const GOOGLE_MAX_DEPTH = 5;
 
 export function cleanApiKey(key) {
-  if (!key) return DEFAULT_GOOGLE_API_KEY;
+  if (!key) return '';
   const cleaned = String(key).replace(/['";\s]/g, '').trim();
-  return cleaned.length > 15 && !cleaned.startsWith('PASTE_') ? cleaned : DEFAULT_GOOGLE_API_KEY;
+  return cleaned.length > 15 && !cleaned.startsWith('PASTE_') ? cleaned : '';
 }
 
 export function approxDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -127,9 +127,39 @@ export function cellIntersects(cell, geometry) {
 }
 
 export async function googleNearby(cell, types, apiKey) {
-  const validKey = cleanApiKey(apiKey);
   const center = cell.getCenter();
   const radius = Math.max(1, cell.getNorthWest().distanceTo(cell.getSouthEast()) / 2);
+
+  // 1. Try secure backend server proxy first (keeps Google API key completely hidden on backend)
+  try {
+    const backendRes = await fetch('/api/places/nearby', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        includedTypes: types,
+        maxResultCount: 20,
+        locationRestriction: {
+          circle: {
+            center: { latitude: center.lat, longitude: center.lng },
+            radius: Math.min(radius, 50000),
+          },
+        },
+      }),
+    });
+
+    if (backendRes.ok) {
+      const data = await backendRes.json();
+      return data.places || [];
+    }
+  } catch (err) {
+    console.warn('[Places] Backend places proxy failed, attempting direct fallback if key exists:', err);
+  }
+
+  // 2. Direct fallback if key is explicitly available
+  const validKey = cleanApiKey(apiKey);
+  if (!validKey) return [];
 
   const res = await fetch(GOOGLE_NEARBY_URL, {
     method: 'POST',

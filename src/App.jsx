@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './features/ai/styles.css';
-import { initMapFeature, searchPlace, getLocationRequirement } from './features/map/index.js';
+import { initMapFeature, searchPlace, getLocationRequirement, getMapboxToken } from './features/map/index.js';
 import {
   CATEGORY_GROUPS,
   ALL_CATEGORY_ITEMS,
@@ -371,70 +371,78 @@ export default function App() {
 
   // Initialize Mapbox feature
   useEffect(() => {
-    const apiKey = (import.meta.env.VITE_MAPBOX_API_KEY ?? '').trim();
+    let isMounted = true;
+    let createdFeature = null;
 
-    if (!apiKey) {
-      setErrorMessage('Missing VITE_MAPBOX_API_KEY in your .env file.');
-      return undefined;
+    async function init() {
+      const apiKey = await getMapboxToken();
+
+      if (!isMounted) return;
+
+      if (!apiKey) {
+        setErrorMessage('Missing MAPBOX_API_KEY in your .env file on the server.');
+        return;
+      }
+
+      createdFeature = initMapFeature({
+        apiKey,
+        mapContainerRef,
+        errorBoxRef: mapErrorRef,
+        onModeChange: setMapMode,
+        getPinMode: () => (pickingDestinationRef.current ? 'destination' : (pinModeRef.current !== 'none' ? pinModeRef.current : activeTargetRef.current)),
+        onLocationPick: (customLoc, siteTarget = 'A') => {
+          const target = siteTarget || activeTargetRef.current;
+          if (pickingDestinationRef.current || target === 'destination' || pinModeRef.current === 'destination') {
+            setDestination(customLoc);
+            setPickingDestination(false);
+            pickingDestinationRef.current = false;
+            setPinMode('none');
+            createdFeature.updateDestination(customLoc);
+            return;
+          }
+          if (target === 'bookmark' || pinModeRef.current === 'bookmark') {
+            saveFavoriteLocation(customLoc);
+            setPinMode('none');
+            setFavoritesTrigger((prev) => prev + 1);
+            return;
+          }
+          if (target === 'B' || pinModeRef.current === 'B') {
+            setCompareSiteB(customLoc);
+            setLocationBInput(customLoc.address || customLoc.name);
+            setPinMode('none');
+            setComparisonResult(null);
+            createdFeature.updateSiteB(customLoc);
+            if (isSplitViewActive) {
+              setIsSplitViewActive(false);
+              createdFeature.stopSplitMapB();
+            }
+          } else {
+            setSelectedLocation(customLoc);
+            setLocationAInput(customLoc.address || customLoc.name);
+            setPinMode('none');
+            setAnalysisRun(false);
+            setAnalysisResult(null);
+            setDensityScore(null);
+            setComparisonResult(null);
+            setIsSplitViewActive(false);
+            createdFeature.clearIsochrone();
+            createdFeature.clearComparison();
+            createdFeature.updateOrigin(customLoc);
+            currentOriginRef.current = customLoc;
+          }
+        },
+      });
+
+      mapFeatureRef.current = createdFeature;
     }
 
-    const googleApiKey = (import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY || '').trim();
+    init();
 
-    const feature = initMapFeature({
-      apiKey,
-      googleApiKey,
-      mapContainerRef,
-      errorBoxRef: mapErrorRef,
-      onModeChange: setMapMode,
-      getPinMode: () => (pickingDestinationRef.current ? 'destination' : (pinModeRef.current !== 'none' ? pinModeRef.current : activeTargetRef.current)),
-      onLocationPick: (customLoc, siteTarget = 'A') => {
-        const target = siteTarget || activeTargetRef.current;
-        if (pickingDestinationRef.current || target === 'destination' || pinModeRef.current === 'destination') {
-          setDestination(customLoc);
-          setPickingDestination(false);
-          pickingDestinationRef.current = false;
-          setPinMode('none');
-          feature.updateDestination(customLoc);
-          return;
-        }
-        if (target === 'bookmark' || pinModeRef.current === 'bookmark') {
-          saveFavoriteLocation(customLoc);
-          setPinMode('none');
-          setFavoritesTrigger((prev) => prev + 1);
-          return;
-        }
-        if (target === 'B' || pinModeRef.current === 'B') {
-          setCompareSiteB(customLoc);
-          setLocationBInput(customLoc.address || customLoc.name);
-          setPinMode('none');
-          setComparisonResult(null);
-          feature.updateSiteB(customLoc);
-          if (isSplitViewActive) {
-            setIsSplitViewActive(false);
-            feature.stopSplitMapB();
-          }
-        } else {
-          setSelectedLocation(customLoc);
-          setLocationAInput(customLoc.address || customLoc.name);
-          setPinMode('none');
-          setAnalysisRun(false);
-          setAnalysisResult(null);
-          setDensityScore(null);
-          setComparisonResult(null);
-          setIsSplitViewActive(false);
-          feature.clearIsochrone();
-          feature.clearComparison();
-          feature.updateOrigin(customLoc);
-          currentOriginRef.current = customLoc;
-        }
-      },
-    });
-
-    mapFeatureRef.current = feature;
-
-    // DO NOT label amenities at default! Map remains clean with only origin pin.
     return () => {
-      feature.map.remove();
+      isMounted = false;
+      if (createdFeature?.map) {
+        createdFeature.map.remove();
+      }
     };
   }, []);
 
