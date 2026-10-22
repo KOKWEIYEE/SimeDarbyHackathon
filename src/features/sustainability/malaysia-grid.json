@@ -1,0 +1,19 @@
+{
+  "publisher": "Suruhanjaya Tenaga (Energy Commission Malaysia)",
+  "title": "Grid Emission Factor in Malaysia, 2022-2024 (Provisional)",
+  "year": 2024,
+  "published": "2026-02-23",
+  "retrieved": "2026-10-21",
+  "status": "Provisional",
+  "source": "https://myenergystats.st.gov.my/documents/d/guest/grid-emission-factor-gef-in-malaysia-2022-2024-provisional-",
+  "page": 1,
+  "unit": "kgCO2e/kWh",
+  "sourceUnit": "GgCO2e/GWh",
+  "conversion": "1 Gg/GWh = 1 kg/kWh",
+  "regions": {
+    "peninsular": {"name": "Peninsular Malaysia (KL)", "value": 0.740},
+    "sabah": {"name": "Sabah", "value": 0.539},
+    "sarawak": {"name": "Sarawak", "value": 0.199}
+  },
+  "boundary": "Electricity generation emissions. Excludes grid transmission/distribution losses, upstream energy supply, battery/vehicle manufacture and infrastructure. Consumption must include charging losses. Regional charging location is a user assumption, not detected from the route."
+}

@@ -1,0 +1,13 @@
+.sustainability-panel { overflow-y:auto; padding:18px; color:#20352d; font-size:13px; line-height:1.6; }
+.sustainability-panel h2 { margin:0; }
+.sustainability-panel label,.sustainability-location { display:grid; gap:6px; margin-bottom:12px; }
+.sustainability-panel input { width:100%; padding:9px; }
+.sustainability-panel fieldset { border:1px solid #dde4dd; border-radius:10px; margin:14px 0; }
+.sustainability-panel small { display:block; color:#53665b; }
+.sustainability-result { margin:12px 0; padding:12px; background:#f4f8f5; border:1px solid #dde4dd; border-radius:10px; }
+.sustainability-result h3 { margin:0; }
+.sustainability-panel button:disabled { opacity:.5; cursor:not-allowed; }
+.construction-panel { margin:16px 0; padding:12px; border:1px solid #dde4dd; border-radius:10px; }
+.construction-panel summary { cursor:pointer; font-weight:600; padding:6px 0; }
+.construction-panel select { width:100%; padding:8px; }
+.construction-panel input { box-sizing:border-box; }
