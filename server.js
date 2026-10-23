@@ -304,6 +304,16 @@ Current map evidence: ${JSON.stringify(context).slice(0,24000)}`;
  * Reads and parses JSON body from an incoming HTTP request stream.
  */
 export function readJsonBody(req) {
+  if (req.body && typeof req.body === 'object') {
+    return Promise.resolve(req.body);
+  }
+  if (typeof req.body === 'string') {
+    try {
+      return Promise.resolve(JSON.parse(req.body));
+    } catch {
+      return Promise.resolve({});
+    }
+  }
   return new Promise((resolve, reject) => {
     let data = '';
     req.on('data', (chunk) => {
@@ -329,12 +339,24 @@ export function readJsonBody(req) {
  * Helper to write JSON responses with proper CORS headers.
  */
 export function sendJson(res, statusCode, payload) {
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+
+  if (typeof res.status === 'function') {
+    res.status(statusCode);
+    if (typeof res.json === 'function') {
+      return res.json(payload);
+    }
+  }
+
   res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.end(JSON.stringify(payload));
+  if (typeof res.end === 'function') {
+    res.end(JSON.stringify(payload));
+  }
 }
 
 /**

@@ -1,46 +1,9 @@
 /**
  * Vercel Serverless Function: POST /api/places/nearby
- * Proxies Google Places Nearby Search API securely using GOOGLE_API_KEY.
+ * Proxies Google Places Nearby Search API with auto-sanitization and retry logic.
  */
+import { handlePlacesNearbyRoute } from '../../server.js';
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(204).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  const googleApiKey = (process.env.GOOGLE_API_KEY || '').trim();
-
-  try {
-    const { includedTypes, maxResultCount = 20, locationRestriction } = req.body || {};
-
-    const response = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': googleApiKey,
-        'X-Goog-FieldMask':
-          'places.id,places.displayName,places.location,places.types,places.primaryType,places.formattedAddress,places.shortFormattedAddress,places.addressComponents,places.viewport',
-      },
-      body: JSON.stringify({
-        includedTypes,
-        maxResultCount,
-        locationRestriction,
-      }),
-    });
-
-    const data = await response.json();
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.status(response.status).json(data);
-  } catch (err) {
-    console.error('[Vercel API] Places Nearby Error:', err.message);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.status(500).json({ error: err.message });
-  }
+  return handlePlacesNearbyRoute(req, res);
 }
