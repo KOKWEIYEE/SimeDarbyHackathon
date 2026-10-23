@@ -10,7 +10,21 @@ export default function ConstructionPanel(props) {
   const [mode, setMode] = useState('auto');
   const [copied, setCopied] = useState(null);
   function copyToManual(data) { setCopied({ ...structuredClone(data), version: (copied?.version || 0) + 1 }); setMode('manual'); }
-  return <section><nav aria-label="Construction calculation mode">
+  return <section>
+    <details className="construction-panel material-reference">
+      <summary>Material references ? available without AI</summary>
+      <p>Use these existing references to compare a sidewalk scenario. They do not establish which specification is suitable for MRT Merdeka?LaLaport or another site.</p>
+      <ul>
+        <li>Concrete surface, Portland cement reference: {concreteSource.baseline} {concreteSource.unit}.</li>
+        <li>Concrete surface, 50% GGBS reference: {concreteSource.alternative} {concreteSource.unit}.</li>
+        <li>Sub-base: enter the specified material, quantity, factor and price in Manual.</li>
+        <li>Rain cover: add roof, supports and foundation materials from a structural specification in Manual.</li>
+      </ul>
+      <p>{concreteSource.region}. {concreteSource.boundary}</p>
+      <a href={concreteSource.url} target="_blank" rel="noreferrer">Source: {concreteSource.publisher}</a>
+      <p>Automatic mode calculates concrete volume from your dimensions. Manual mode accepts your supplier data. Prices are not prefilled. Drainage, slip resistance, accessibility and site constraints still require assessment.</p>
+    </details>
+    <nav aria-label="Construction calculation mode">
     <button aria-pressed={mode === 'auto'} onClick={() => setMode('auto')}>Automatic estimate</button>
     <button aria-pressed={mode === 'manual'} onClick={() => setMode('manual')}>Manual comparison</button>
   </nav>
