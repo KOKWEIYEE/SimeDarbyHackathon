@@ -4,7 +4,7 @@
  * and data-driven recommendations between two urban sites.
  */
 
-import { calculateAmenitiesDensityScore } from '../density/densityService.js';
+import { calculateAmenitiesDensityScore, estimateCatchmentAreaKm2 } from '../density/densityService.js';
 
 export function calculateSiteComparison({
   siteA,
@@ -16,6 +16,16 @@ export function calculateSiteComparison({
   mode = 'walking',
   minutes = 20,
 }) {
+  // Ensure non-zero area fallback for both locations
+  if (densityA && (!densityA.areaKm2 || densityA.areaKm2 <= 0.01)) {
+    densityA.areaKm2 = estimateCatchmentAreaKm2(minutes, mode);
+    densityA.densityPerKm2 = Number(((statsA?.total || densityA.totalPlaces || 0) / densityA.areaKm2).toFixed(1));
+  }
+  if (densityB && (!densityB.areaKm2 || densityB.areaKm2 <= 0.01)) {
+    densityB.areaKm2 = estimateCatchmentAreaKm2(minutes, mode);
+    densityB.densityPerKm2 = Number(((statsB?.total || densityB.totalPlaces || 0) / densityB.areaKm2).toFixed(1));
+  }
+
   const scoreDiff = (densityB?.score ?? 0) - (densityA?.score ?? 0);
   const placesDiff = (statsB?.total ?? 0) - (statsA?.total ?? 0);
   const densityDiff = Number(((densityB?.densityPerKm2 ?? 0) - (densityA?.densityPerKm2 ?? 0)).toFixed(1));

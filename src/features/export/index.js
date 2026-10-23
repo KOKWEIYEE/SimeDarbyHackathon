@@ -1,1 +1,5 @@
-export { generatePdfAnalysisReport } from './pdfReportService.js';
+export {
+  generatePdfAnalysisReport,
+  generateDualComparisonPdfReport,
+  captureMapSnapshotWithLabels,
+} from './pdfReportService.js';

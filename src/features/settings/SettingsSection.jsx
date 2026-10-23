@@ -8,7 +8,6 @@ import {
   savePreferences,
   PRICE_RANGE_OPTIONS,
   updateFavoriteBudget,
-  filterFavoritesByBudget,
 } from './settingsService.js';
 import { searchPlace } from '../map/services/geocodingService.js';
 
@@ -21,8 +20,6 @@ export function SettingsSection({
   favoritesTrigger,
 }) {
   const [favorites, setFavorites] = useState([]);
-  const [budgetFilter, setBudgetFilter] = useState('all');
-  const visibleFavorites = filterFavoritesByBudget(favorites, budgetFilter);
   const [preferences, setPreferences] = useState(getStoredPreferences());
   const [bookmarkInput, setBookmarkInput] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -172,20 +169,14 @@ export function SettingsSection({
           ) : null}
         </div>
 
-        <label className="pref-sub-label">
-          Show saved places
-          <select value={budgetFilter} onChange={event => setBudgetFilter(event.target.value)}>
-            {PRICE_RANGE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.id === 'all' ? 'All saved places' : option.label}</option>)}
-          </select>
-        </label>
         {/* List of saved favorites */}
         <div className="favorites-list">
-          {visibleFavorites.length === 0 ? (
+          {favorites.length === 0 ? (
             <div className="favorites-empty-card">
-              No saved places match this filter.
+              No saved places yet.
             </div>
           ) : (
-            visibleFavorites.map((fav) => (
+            favorites.map((fav) => (
               <div
                 key={fav.id}
                 className="favorite-item-card"

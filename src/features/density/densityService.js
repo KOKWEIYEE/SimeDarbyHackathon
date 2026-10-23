@@ -10,7 +10,20 @@ const EARTH_RADIUS_KM = 6371.0088;
  * Uses spherical shoelace algorithm (equivalent to Shapely + pyproj geodesic area).
  */
 export function calculatePolygonAreaKm2(geometry) {
-  if (!geometry || !geometry.coordinates) return 0;
+  if (!geometry) return 0;
+
+  // Handle FeatureCollection
+  if (geometry.type === 'FeatureCollection' && Array.isArray(geometry.features)) {
+    let sum = 0;
+    for (const f of geometry.features) {
+      sum += calculatePolygonAreaKm2(f);
+    }
+    return sum;
+  }
+
+  // Handle GeoJSON Feature
+  const geom = geometry.geometry || geometry;
+  if (!geom || !geom.coordinates) return 0;
 
   const toRad = (deg) => (deg * Math.PI) / 180;
 
@@ -34,19 +47,19 @@ export function calculatePolygonAreaKm2(geometry) {
     return area;
   }
 
-  if (geometry.type === 'Polygon') {
+  if (geom.type === 'Polygon') {
     // Outer ring minus inner holes
-    const outerArea = ringAreaKm2(geometry.coordinates[0]);
+    const outerArea = ringAreaKm2(geom.coordinates[0]);
     let holesArea = 0;
-    for (let h = 1; h < geometry.coordinates.length; h++) {
-      holesArea += ringAreaKm2(geometry.coordinates[h]);
+    for (let h = 1; h < geom.coordinates.length; h++) {
+      holesArea += ringAreaKm2(geom.coordinates[h]);
     }
     return Math.max(0, outerArea - holesArea);
   }
 
-  if (geometry.type === 'MultiPolygon') {
+  if (geom.type === 'MultiPolygon') {
     let total = 0;
-    for (const poly of geometry.coordinates) {
+    for (const poly of geom.coordinates) {
       const outerArea = ringAreaKm2(poly[0]);
       let holesArea = 0;
       for (let h = 1; h < poly.length; h++) {
@@ -58,6 +71,18 @@ export function calculatePolygonAreaKm2(geometry) {
   }
 
   return 0;
+}
+
+/**
+ * Calculates a realistic travel-time catchment area in km² based on speed benchmarks
+ * as a reliable fallback when isochrone polygon is loading or unprojected.
+ */
+export function estimateCatchmentAreaKm2(travelMinutes = 20, mode = 'walking') {
+  const speed = mode === 'cycling' ? 14 : mode === 'driving' ? 32 : 4.8;
+  const radiusKm = speed * (Number(travelMinutes) / 60);
+  const factor = mode === 'driving' ? 0.45 : mode === 'cycling' ? 0.52 : 0.60;
+  const area = Math.PI * radiusKm * radiusKm * factor;
+  return Number(Math.max(0.35, area).toFixed(2));
 }
 
 /**
@@ -114,7 +139,8 @@ export function calculateAmenitiesDensityScore({
   mode = 'walking',
 }) {
   const totalPlaces = places.length;
-  const areaKm2 = calculatePolygonAreaKm2(isochroneGeometry);
+  let rawArea = calculatePolygonAreaKm2(isochroneGeometry);
+  const areaKm2 = rawArea > 0.01 ? rawArea : estimateCatchmentAreaKm2(travelMinutes, mode);
   const densityPerKm2 = areaKm2 > 0 ? Number((totalPlaces / areaKm2).toFixed(1)) : 0;
 
   const { shannonIndex, evenness, categoryCounts } = calculateDiversityIndex(places);

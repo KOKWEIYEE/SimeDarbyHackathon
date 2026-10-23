@@ -10,7 +10,11 @@ import {
   CATEGORY_SHAPES,
 } from './features/map/placesData.js';
 import { calculateAmenitiesDensityScore } from './features/density/index.js';
-import { generatePdfAnalysisReport } from './features/export/index.js';
+import {
+  generatePdfAnalysisReport,
+  generateDualComparisonPdfReport,
+  captureMapSnapshotWithLabels,
+} from './features/export/index.js';
 import { calculateSiteComparison } from './features/comparison/index.js';
 import {
   callAiChatApi,
@@ -654,22 +658,104 @@ export default function App() {
   const handleExport = async (type) => {
     setExportMenuOpen(false);
 
+    const isDual = isComparing || !!comparisonResult;
+
     if (type === 'png') {
-      const canvas = await window.html2canvas(document.getElementById('map'));
-      canvas.toBlob((blob) => {
-        if (blob) {
-          downloadBlob(blob, 'sime-darby-map.png');
-        }
-      }, 'image/png');
+      let canvas = await captureMapSnapshotWithLabels({
+        map: mapFeatureRef.current?.map,
+        isComparing: isDual,
+        siteA: comparisonResult?.siteA || selectedLocation,
+        siteB: comparisonResult?.siteB || compareSiteB,
+        origin: selectedLocation,
+        travelMode,
+        travelMinutes,
+        places: analysisResult?.places || [],
+        placesA: comparisonResult?.statsA?.places || [],
+        placesB: comparisonResult?.statsB?.places || [],
+      });
+
+      if (!canvas && window.html2canvas) {
+        canvas = await window.html2canvas(document.getElementById('map'));
+      }
+
+      if (canvas) {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            downloadBlob(blob, isDual ? 'sime-darby-dual-comparison-map.png' : 'sime-darby-map.png');
+          }
+        }, 'image/png');
+      }
       return;
     }
 
     if (type === 'pdf') {
-      let canvas = mapFeatureRef.current?.getMapCanvas();
-      if (!canvas || canvas.width === 0) {
-        canvas = await window.html2canvas(document.getElementById('map'));
+      // ── DUAL SITE COMPARISON REPORT ─────────────────────────────────────────
+      if (isDual) {
+        let comp = comparisonResult;
+
+        // If comparison mode is active but comparisonResult wasn't finalized yet, generate complete comparative model
+        if (!comp) {
+          const catMap = new Map(ALL_CATEGORY_ITEMS.map((c) => [c.id, c]));
+          const placesA = PLACES_DATA.filter((p) => selectedCategories.includes(p.categoryId)).map((p) => ({
+            ...p,
+            cat: catMap.get(p.categoryId) || { label: p.categoryId, id: p.categoryId, color: '#2563eb' },
+            band: travelMinutes,
+            lat: p.coords[1],
+            lon: p.coords[0],
+          }));
+          const densityA = calculateAmenitiesDensityScore({
+            places: placesA,
+            travelMinutes,
+            mode: travelMode,
+          });
+
+          const placesB = PLACES_DATA.filter((p) => selectedCategories.includes(p.categoryId)).map((p) => ({
+            ...p,
+            cat: catMap.get(p.categoryId) || { label: p.categoryId, id: p.categoryId, color: '#9333ea' },
+            band: travelMinutes,
+            lat: p.coords[1],
+            lon: p.coords[0],
+          }));
+          const densityB = calculateAmenitiesDensityScore({
+            places: placesB,
+            travelMinutes,
+            mode: travelMode,
+          });
+
+          comp = calculateSiteComparison({
+            siteA: selectedLocation,
+            siteB: compareSiteB || { name: 'Empire Subang', coords: [101.5815, 3.0805], address: 'Subang Jaya, Selangor' },
+            statsA: { total: placesA.length, typeBreakdown: [], places: placesA },
+            statsB: { total: placesB.length, typeBreakdown: [], places: placesB },
+            densityA,
+            densityB,
+            mode: travelMode,
+            minutes: travelMinutes,
+          });
+        }
+
+        // Capture snapshot canvas with BOTH location pins, badges, labels, and legend
+        const canvas = await captureMapSnapshotWithLabels({
+          map: mapFeatureRef.current?.map,
+          isComparing: true,
+          siteA: comp.siteA || selectedLocation,
+          siteB: comp.siteB || compareSiteB,
+          travelMode,
+          travelMinutes,
+          placesA: comp.statsA?.places || [],
+          placesB: comp.statsB?.places || [],
+        });
+
+        await generateDualComparisonPdfReport({
+          mapCanvas: canvas,
+          comparisonResult: comp,
+          travelMode,
+          travelMinutes,
+        });
+        return;
       }
 
+      // ── SINGLE SITE REPORT ──────────────────────────────────────────────────
       let effectiveAnalysis = analysisResult;
       let effectiveDensity = densityScore;
 
@@ -717,6 +803,26 @@ export default function App() {
           mode: travelMode,
         });
       }
+
+      // Guarantee non-zero area in density score
+      if (!effectiveDensity || !effectiveDensity.areaKm2 || effectiveDensity.areaKm2 <= 0.01) {
+        effectiveDensity = calculateAmenitiesDensityScore({
+          isochroneGeometry: mapFeatureRef.current?.getIsochroneGeometry() || null,
+          places: effectiveAnalysis?.places || [],
+          travelMinutes,
+          mode: travelMode,
+        });
+      }
+
+      // Capture snapshot canvas with single site location pin, label card, and legend
+      const canvas = await captureMapSnapshotWithLabels({
+        map: mapFeatureRef.current?.map,
+        isComparing: false,
+        origin: selectedLocation,
+        travelMode,
+        travelMinutes,
+        places: effectiveAnalysis?.places || [],
+      });
 
       await generatePdfAnalysisReport({
         mapCanvas: canvas,
@@ -889,6 +995,7 @@ export default function App() {
               minutes: action.minutes || travelMinutes,
             });
             setComparisonResult(comp);
+            setDensityScore(densityA);
             setAnalysisRun(true);
 
             const placesA = res.statsA.places || [];
@@ -1058,6 +1165,7 @@ ${catListFormatted || '• No places returned in the selected categories.'}
 
       setIsComparing(true);
       setComparisonResult(comp);
+      setDensityScore(densityA);
       setAnalysisRun(true);
     } catch (err) {
       console.error('Comparison error:', err);
