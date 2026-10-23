@@ -766,70 +766,96 @@ export async function generateDualComparisonPdfReport({
   doc.text(`Total of ${statsA.places?.length || 0} places identified within the ${travelMinutes}-min ${travelMode} catchment.`, margin, y);
   y += 14;
 
-  function drawPlacesTable(places, siteLabel, color) {
-    // Header
+  function drawPlacesTable(places, siteLabel) {
+    // Header without Band column
     doc.setFillColor(15, 23, 42);
     doc.rect(margin, y, contentWidth, 20, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
     doc.text('#', margin + 6, y + 13);
-    doc.text('Place Name', margin + 26, y + 13);
-    doc.text('Category', margin + 210, y + 13);
-    doc.text('Address / Location', margin + 330, y + 13);
-    doc.text('Band', margin + 495, y + 13, { align: 'right' });
+    doc.text('Place Name', margin + 28, y + 13);
+    doc.text('Category', margin + 208, y + 13);
+    doc.text('Address / Location', margin + 324, y + 13);
     y += 20;
 
     places.forEach((place, idx) => {
-      if (y > pageHeight - 45) {
+      // Pre-calculate line wraps for each column
+      const nameText = place.name || 'Unnamed Place';
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      const nameLines = doc.splitTextToSize(nameText, 172);
+
+      const catText = place.cat?.label || place.categoryId || 'Amenity';
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      const catLines = doc.splitTextToSize(catText, 108);
+
+      const addrText = place.address || (place.lat ? `${Number(place.lat).toFixed(4)}, ${Number(place.lon).toFixed(4)}` : 'In catchment');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      const addrLines = doc.splitTextToSize(addrText, 195);
+
+      const lineCount = Math.max(nameLines.length, catLines.length, addrLines.length, 1);
+      const lineSpacing = 9.5;
+      const rowPadding = 8;
+      const rowH = Math.max(18, lineCount * lineSpacing + rowPadding);
+
+      if (y + rowH > pageHeight - 38) {
         doc.addPage();
         drawHeader(`Verified Amenities: ${siteLabel} (Continued)`);
         y = 70;
 
-        // Repeat header
+        // Repeat header without Band column
         doc.setFillColor(15, 23, 42);
         doc.rect(margin, y, contentWidth, 20, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(255, 255, 255);
         doc.text('#', margin + 6, y + 13);
-        doc.text('Place Name', margin + 26, y + 13);
-        doc.text('Category', margin + 210, y + 13);
-        doc.text('Address / Location', margin + 330, y + 13);
-        doc.text('Band', margin + 495, y + 13, { align: 'right' });
+        doc.text('Place Name', margin + 28, y + 13);
+        doc.text('Category', margin + 208, y + 13);
+        doc.text('Address / Location', margin + 324, y + 13);
         y += 20;
       }
 
       const isEven = idx % 2 === 0;
       doc.setFillColor(isEven ? 255 : 248, isEven ? 255 : 250, isEven ? 255 : 252);
-      doc.rect(margin, y, contentWidth, 18, 'F');
+      doc.rect(margin, y, contentWidth, rowH, 'F');
       doc.setDrawColor(241, 245, 249);
-      doc.line(margin, y + 18, margin + contentWidth, y + 18);
+      doc.line(margin, y + rowH, margin + contentWidth, y + rowH);
 
+      // 1. Index
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(71, 85, 105);
-      doc.text(`${idx + 1}`, margin + 6, y + 12);
+      doc.text(`${idx + 1}`, margin + 6, y + 11);
 
+      // 2. Place Name (multiline)
       doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
       doc.setTextColor(15, 23, 42);
-      const truncatedName = doc.splitTextToSize(place.name || 'Unnamed Place', 175)[0];
-      doc.text(truncatedName, margin + 26, y + 12);
+      nameLines.forEach((line, lIdx) => {
+        doc.text(line, margin + 28, y + 11 + lIdx * lineSpacing);
+      });
 
+      // 3. Category (multiline)
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      const catText = place.cat?.label || place.categoryId || 'Amenity';
-      doc.text(doc.splitTextToSize(catText, 110)[0], margin + 210, y + 12);
+      catLines.forEach((line, lIdx) => {
+        doc.text(line, margin + 208, y + 11 + lIdx * lineSpacing);
+      });
 
+      // 4. Address / Location (multiline)
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
       doc.setTextColor(71, 85, 105);
-      const addrText = place.address || (place.lat ? `${Number(place.lat).toFixed(4)}, ${Number(place.lon).toFixed(4)}` : 'In catchment');
-      doc.text(doc.splitTextToSize(addrText, 155)[0], margin + 330, y + 12);
+      addrLines.forEach((line, lIdx) => {
+        doc.text(line, margin + 324, y + 11 + lIdx * lineSpacing);
+      });
 
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text(`≤${place.band || travelMinutes}m`, margin + 495, y + 12, { align: 'right' });
-
-      y += 18;
+      y += rowH;
     });
   }
 
@@ -1237,7 +1263,7 @@ export async function generatePdfAnalysisReport({
   );
   y += 16;
 
-  // Table Header
+  // Table Header without Band column
   const thY2 = y;
   doc.setFillColor(15, 23, 42);
   doc.rect(margin, thY2, contentWidth, 22, 'F');
@@ -1246,64 +1272,91 @@ export async function generatePdfAnalysisReport({
   doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
   doc.text('#', margin + 6, thY2 + 14);
-  doc.text('Place Name', margin + 26, thY2 + 14);
-  doc.text('Category', margin + 210, thY2 + 14);
-  doc.text('Address / Location', margin + 330, thY2 + 14);
-  doc.text('Band', margin + 495, thY2 + 14, { align: 'right' });
+  doc.text('Place Name', margin + 28, thY2 + 14);
+  doc.text('Category', margin + 208, thY2 + 14);
+  doc.text('Address / Location', margin + 324, thY2 + 14);
 
   y += 22;
 
   const placesList = analysisResult?.places || [];
 
   placesList.forEach((place, idx) => {
-    if (y > pageHeight - 45) {
+    // Pre-calculate line wraps for each column
+    const nameText = place.name || 'Unnamed Place';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    const nameLines = doc.splitTextToSize(nameText, 172);
+
+    const catText = place.cat?.label || place.categoryId || 'Amenity';
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const catLines = doc.splitTextToSize(catText, 108);
+
+    const addrText = place.address || (place.lat ? `${Number(place.lat).toFixed(4)}, ${Number(place.lon).toFixed(4)}` : 'In catchment');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const addrLines = doc.splitTextToSize(addrText, 195);
+
+    const lineCount = Math.max(nameLines.length, catLines.length, addrLines.length, 1);
+    const lineSpacing = 9.5;
+    const rowPadding = 8;
+    const rowH = Math.max(18, lineCount * lineSpacing + rowPadding);
+
+    if (y + rowH > pageHeight - 38) {
       doc.addPage();
       drawHeader('Detailed Amenities Directory (Continued)');
       y = 70;
 
+      // Repeat header without Band column
       doc.setFillColor(15, 23, 42);
       doc.rect(margin, y, contentWidth, 20, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(255, 255, 255);
       doc.text('#', margin + 6, y + 13);
-      doc.text('Place Name', margin + 26, y + 13);
-      doc.text('Category', margin + 210, y + 13);
-      doc.text('Address / Location', margin + 330, y + 13);
-      doc.text('Band', margin + 495, y + 13, { align: 'right' });
+      doc.text('Place Name', margin + 28, y + 13);
+      doc.text('Category', margin + 208, y + 13);
+      doc.text('Address / Location', margin + 324, y + 13);
       y += 20;
     }
 
     const isEven = idx % 2 === 0;
     doc.setFillColor(isEven ? 255 : 248, isEven ? 255 : 250, isEven ? 255 : 252);
-    doc.rect(margin, y, contentWidth, 18, 'F');
+    doc.rect(margin, y, contentWidth, rowH, 'F');
     doc.setDrawColor(241, 245, 249);
-    doc.line(margin, y + 18, margin + contentWidth, y + 18);
+    doc.line(margin, y + rowH, margin + contentWidth, y + rowH);
 
+    // 1. Index
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
-    doc.text(`${idx + 1}`, margin + 6, y + 12);
+    doc.text(`${idx + 1}`, margin + 6, y + 11);
 
+    // 2. Place Name (multiline)
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
     doc.setTextColor(15, 23, 42);
-    const truncatedName = doc.splitTextToSize(place.name || 'Unnamed', 175)[0];
-    doc.text(truncatedName, margin + 26, y + 12);
+    nameLines.forEach((line, lIdx) => {
+      doc.text(line, margin + 28, y + 11 + lIdx * lineSpacing);
+    });
 
+    // 3. Category (multiline)
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    const catText = place.cat?.label || place.categoryId || 'Place';
-    doc.text(doc.splitTextToSize(catText, 110)[0], margin + 210, y + 12);
+    catLines.forEach((line, lIdx) => {
+      doc.text(line, margin + 208, y + 11 + lIdx * lineSpacing);
+    });
 
+    // 4. Address / Location (multiline)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
-    const addrText = place.address || (place.lat ? `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}` : 'In catchment');
-    doc.text(doc.splitTextToSize(addrText, 155)[0], margin + 330, y + 12);
+    addrLines.forEach((line, lIdx) => {
+      doc.text(line, margin + 324, y + 11 + lIdx * lineSpacing);
+    });
 
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(37, 99, 235);
-    doc.text(`≤${place.band || travelMinutes}m`, margin + 495, y + 12, { align: 'right' });
-
-    y += 18;
+    y += rowH;
   });
 
   // Stamp page footers across all pages
